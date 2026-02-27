@@ -140,6 +140,54 @@ def get_finnhub_news(sym: str) -> list:
         return [{"error": str(e)}]
 
 
+def get_polygon_news(sym: str) -> list:
+    try:
+        from tradingagents.dataflows.polygon_data import PolygonData
+        pg = PolygonData()
+        if not pg.is_available():
+            return [{"note": "POLYGON_API_KEY not set"}]
+        return pg.get_news(sym, limit=5)
+    except Exception as e:
+        return [{"error": str(e)}]
+
+
+def get_polygon_quote(sym: str) -> dict:
+    try:
+        from tradingagents.dataflows.polygon_data import PolygonData
+        pg = PolygonData()
+        if not pg.is_available():
+            return {"note": "POLYGON_API_KEY not set"}
+        return pg.get_quote(sym)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def get_newsapi_news(sym: str) -> list:
+    try:
+        from tradingagents.dataflows.newsapi_data import NewsAPIData
+        na = NewsAPIData()
+        if not na.is_available():
+            return [{"note": "NEWS_API_KEY not set"}]
+        return na.get_ticker_news(sym, limit=5)
+    except Exception as e:
+        return [{"error": str(e)}]
+
+
+def get_polygon_movers() -> dict:
+    """Top gainers and losers — used for Tier 3 dynamic candidates."""
+    try:
+        from tradingagents.dataflows.polygon_data import PolygonData
+        pg = PolygonData()
+        if not pg.is_available():
+            return {"note": "POLYGON_API_KEY not set"}
+        return {
+            "gainers": pg.get_movers("gainers", limit=10),
+            "losers": pg.get_movers("losers", limit=5),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
 def gather_ticker_data(sym: str, full: bool = False) -> dict:
     data = {
         "ticker": sym,
@@ -153,6 +201,8 @@ def gather_ticker_data(sym: str, full: bool = False) -> dict:
         data["sentiment"] = get_sentiment(sym)
         data["finnhub_news"] = get_finnhub_news(sym)
         data["av_news"] = get_alpha_vantage_news(sym)
+        data["polygon_news"] = get_polygon_news(sym)
+        data["newsapi_news"] = get_newsapi_news(sym)
     return data
 
 
@@ -201,12 +251,21 @@ def score_ticker(data: dict) -> float:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--tickers", required=True, help="Comma-separated tickers")
+    parser.add_argument("--tickers", required=False, default="", help="Comma-separated tickers")
+    parser.add_argument("--movers", action="store_true", help="Get top market movers (Tier 3 candidates)")
     parser.add_argument("--full", action="store_true", help="Include fundamentals, options, sentiment")
     parser.add_argument("--score", action="store_true", help="Include pre-scores")
     args = parser.parse_args()
 
-    tickers = [t.strip().upper() for t in args.tickers.split(",")]
+    if args.movers:
+        print(json.dumps(get_polygon_movers(), indent=2))
+        return
+
+    if not args.tickers:
+        print(json.dumps({"error": "--tickers required unless --movers"}))
+        return
+
+    tickers = [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
     results = []
 
     for sym in tickers:
