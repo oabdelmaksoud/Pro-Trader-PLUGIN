@@ -105,6 +105,32 @@ def get_sentiment(sym: str) -> dict:
         return {"error": str(e)}
 
 
+def get_alpha_vantage_news(sym: str) -> list:
+    try:
+        key = os.getenv("ALPHA_VANTAGE_KEY", "")
+        if not key:
+            return [{"note": "ALPHA_VANTAGE_KEY not set"}]
+        import requests
+        r = requests.get(
+            f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={sym}&limit=5&apikey={key}",
+            timeout=8
+        )
+        data = r.json()
+        items = data.get("feed", [])[:5]
+        return [
+            {
+                "title": item.get("title", ""),
+                "sentiment": item.get("overall_sentiment_label", ""),
+                "sentiment_score": item.get("overall_sentiment_score", 0),
+                "source": item.get("source", ""),
+                "published": item.get("time_published", ""),
+            }
+            for item in items
+        ]
+    except Exception as e:
+        return [{"error": str(e)}]
+
+
 def get_finnhub_news(sym: str) -> list:
     try:
         from tradingagents.dataflows.finnhub_data import FinnhubData
@@ -126,6 +152,7 @@ def gather_ticker_data(sym: str, full: bool = False) -> dict:
         data["options_flow"] = get_options_flow(sym)
         data["sentiment"] = get_sentiment(sym)
         data["finnhub_news"] = get_finnhub_news(sym)
+        data["av_news"] = get_alpha_vantage_news(sym)
     return data
 
 
