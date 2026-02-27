@@ -2,12 +2,12 @@
 """
 CooperCorp PRJ-002 — Live Trading Pipeline
 Usage:
-  python scripts/run_live.py --ticker AAPL            # dry run (analysis only)
-  python scripts/run_live.py --ticker AAPL --execute  # place real paper order
+  python scripts/run_live.py --ticker AAPL              # dry run + post to Discord
+  python scripts/run_live.py --ticker AAPL --execute    # execute paper trade
+  python scripts/run_live.py --ticker AAPL --no-discord # skip Discord posting
 """
 import argparse
 import json
-import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.execution import TradeExecutor
+from tradingagents.discord_reporter import post_analysis, post_trade
 
 COOPER_CONFIG = {
     "llm_provider": "anthropic",
@@ -34,39 +35,51 @@ def main():
     parser = argparse.ArgumentParser(description="CooperCorp Trading Pipeline")
     parser.add_argument("--ticker", required=True, help="Stock ticker symbol")
     parser.add_argument("--date", default=str(date.today()), help="Trade date (YYYY-MM-DD)")
-    parser.add_argument("--execute", action="store_true", help="Place real order (default: dry run)")
-    parser.add_argument("--pct", type=float, default=0.05, help="Portfolio pct per trade (default 5%%)")
+    parser.add_argument("--execute", action="store_true", help="Place real paper order")
+    parser.add_argument("--pct", type=float, default=0.05, help="Portfolio %% per trade (default 5%%)")
+    parser.add_argument("--no-discord", action="store_true", help="Skip Discord posting")
     args = parser.parse_args()
 
     ticker = args.ticker.upper()
     trade_date = args.date
     dry_run = not args.execute
+    post_discord = not args.no_discord
 
     print(f"\n🦅 CooperCorp Trading Pipeline")
-    print(f"   Ticker: {ticker} | Date: {trade_date} | {'DRY RUN' if dry_run else '🔴 LIVE EXECUTION'}")
+    print(f"   Ticker: {ticker} | Date: {trade_date} | {'DRY RUN' if dry_run else '🔴 LIVE PAPER'}")
     print("=" * 60)
 
-    # Run TradingAgents graph
-    print("\n⏳ Running multi-agent analysis...")
+    # Run full multi-agent analysis
+    print("\n⏳ Running multi-agent analysis (may take a few minutes)…")
     graph = TradingAgentsGraph(config=COOPER_CONFIG)
     state, decision = graph.propagate(ticker, trade_date)
-
-    print(f"\n📊 Final Decision:\n{decision}\n")
+    print(f"\n✅ Analysis complete")
+    print(f"\n📋 Final Decision:\n{decision[:800]}")
 
     # Parse & execute
     executor = TradeExecutor(portfolio_pct=args.pct)
     parsed = executor.parse_decision(decision, ticker)
-    print(f"✅ Parsed action: {parsed['action']}")
+    action = parsed["action"]
+    print(f"\n🎯 Parsed: {action}")
 
     order = executor.execute(parsed, dry_run=dry_run)
-
     if order:
-        if dry_run:
-            print(f"🔍 DRY RUN — would {order['side'].upper()} {order['qty']} shares of {ticker}")
-        else:
-            print(f"🚀 ORDER PLACED: {order}")
+        print(f"📦 Order: {order}")
     else:
-        print(f"⏸️  HOLD — no order placed")
+        print("⏸️  HOLD — no order placed")
+
+    # Post to Discord
+    if post_discord:
+        print("\n📨 Posting to Discord…")
+        reports = {
+            "market_report":       state.get("market_report", ""),
+            "news_report":         state.get("news_report", ""),
+            "sentiment_report":    state.get("sentiment_report", ""),
+            "fundamentals_report": state.get("fundamentals_report", ""),
+        }
+        post_analysis(ticker, trade_date, reports, decision, action)
+        post_trade(ticker, trade_date, action, order, dry_run, decision)
+        print("✅ Posted to #war-room-hive-mind and #paper-trades")
 
     # Save run log
     log_dir = Path(__file__).parent.parent / "logs" / "runs"
@@ -74,14 +87,11 @@ def main():
     log_file = log_dir / f"{ticker}_{trade_date}.json"
     with open(log_file, "w") as f:
         json.dump({
-            "ticker": ticker,
-            "date": trade_date,
-            "decision": decision,
-            "parsed": parsed,
-            "order": order,
-            "dry_run": dry_run,
+            "ticker": ticker, "date": trade_date,
+            "decision": decision, "parsed": parsed,
+            "order": order, "dry_run": dry_run,
         }, f, indent=2)
-    print(f"\n💾 Run saved to {log_file}")
+    print(f"\n💾 Saved to {log_file}")
 
 if __name__ == "__main__":
     main()
