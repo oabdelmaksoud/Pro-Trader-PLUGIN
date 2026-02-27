@@ -76,35 +76,51 @@ class AlpacaBroker:
         side: str,  # "buy" | "sell"
         stop_loss_pct: float = 0.03,
         take_profit_pct: float = 0.08,
+        max_retries: int = 3,
     ):
         """
         Submit a bracket order with hard stop-loss and take-profit legs.
         For longs:  stop = entry * (1 - stop_loss_pct), tp = entry * (1 + take_profit_pct)
         For shorts: stop = entry * (1 + stop_loss_pct), tp = entry * (1 - take_profit_pct)
+        Retries up to max_retries times with exponential backoff.
         """
-        # Get current price as entry estimate
-        bar = self.get_latest_bar(symbol)
-        if bar is None:
-            raise ValueError(f"No price data for {symbol}")
-        entry = float(bar["close"])
+        import time
+        import logging
+        logger = logging.getLogger(__name__)
 
-        if side == "buy":
-            stop_price = round(entry * (1 - stop_loss_pct), 2)
-            take_profit_price = round(entry * (1 + take_profit_pct), 2)
-        else:
-            stop_price = round(entry * (1 + stop_loss_pct), 2)
-            take_profit_price = round(entry * (1 - take_profit_pct), 2)
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                # Get current price as entry estimate
+                bar = self.get_latest_bar(symbol)
+                if bar is None:
+                    raise ValueError(f"No price data for {symbol}")
+                entry = float(bar["close"])
 
-        return self.api.submit_order(
-            symbol=symbol,
-            qty=qty,
-            side=side,
-            type="market",
-            time_in_force="day",
-            order_class="bracket",
-            stop_loss={"stop_price": str(stop_price)},
-            take_profit={"limit_price": str(take_profit_price)},
-        )
+                if side == "buy":
+                    stop_price = round(entry * (1 - stop_loss_pct), 2)
+                    take_profit_price = round(entry * (1 + take_profit_pct), 2)
+                else:
+                    stop_price = round(entry * (1 + stop_loss_pct), 2)
+                    take_profit_price = round(entry * (1 - take_profit_pct), 2)
+
+                return self.api.submit_order(
+                    symbol=symbol,
+                    qty=qty,
+                    side=side,
+                    type="market",
+                    time_in_force="day",
+                    order_class="bracket",
+                    stop_loss={"stop_price": str(stop_price)},
+                    take_profit={"limit_price": str(take_profit_price)},
+                )
+            except Exception as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    wait = 2 ** attempt  # 1s, 2s, 4s
+                    logger.warning(f"Order attempt {attempt+1} failed: {e}. Retrying in {wait}s...")
+                    time.sleep(wait)
+        raise RuntimeError(f"Order failed after {max_retries} attempts: {last_error}")
 
     def cancel_all_orders(self):
         return self.api.cancel_all_orders()

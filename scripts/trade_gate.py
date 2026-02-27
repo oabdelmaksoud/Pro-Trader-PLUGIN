@@ -21,9 +21,11 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 from tradingagents.brokers.alpaca import AlpacaBroker
 from tradingagents.risk.circuit_breaker import CircuitBreaker
 from tradingagents.filters.earnings_filter import EarningsFilter
+from tradingagents.filters.correlation_filter import CorrelationFilter
 from tradingagents.signals.signal_logger import SignalLogger
 from tradingagents.risk.trade_lock import TradeLock
 from tradingagents.utils.market_hours import is_market_open
+from tradingagents.utils.strategy_config import get_position_pct, get_vix_multiplier, get_current_vix
 
 def main():
     parser = argparse.ArgumentParser()
@@ -115,7 +117,16 @@ def main():
         print(f"SKIP: At position limit ({len(positions)} positions)")
         return
 
-    # Gate 4b: Already own this ticker? Don't double-buy
+    # Gate 4b: Correlation filter
+    corr = CorrelationFilter(broker)
+    corr_check = corr.is_too_correlated(args.ticker)
+    if not corr_check["ok"] and args.action == "BUY":
+        signal["skip_reason"] = corr_check["reason"]
+        logger.log_signal(signal)
+        print(f"SKIP: {corr_check['reason']}")
+        return
+
+    # Gate 4c: Already own this ticker? Don't double-buy
     already_owned = any(p.symbol == args.ticker for p in positions)
     if args.action == "BUY" and already_owned:
         signal["skip_reason"] = f"Already hold {args.ticker}"
@@ -132,11 +143,16 @@ def main():
         return
 
     try:
-        # Size position
+        # Size position — VIX-adjusted, conviction-scaled
         bp = broker.get_buying_power()
-        budget = bp * args.portfolio_pct
+        vix = get_current_vix()
+        vix_mult = get_vix_multiplier(vix)
+        conviction_pct = get_position_pct(args.conviction)
+        final_pct = conviction_pct * vix_mult
+        budget = bp * final_pct
         side = "buy" if args.action == "BUY" else "sell"
         qty = max(1, int(budget / signal["price_at_signal"])) if signal["price_at_signal"] > 0 else 0
+        print(f"Sizing: conviction={args.conviction} → {conviction_pct*100:.0f}% × VIX({vix:.0f}) mult {vix_mult} = {final_pct*100:.1f}% = {qty} shares")
 
         if args.dry_run:
             if signal["price_at_signal"] <= 0:
@@ -185,6 +201,21 @@ def main():
         print(f"EXECUTED: {side.upper()} {qty} {args.ticker} @ ~${signal['price_at_signal']:.2f}")
         print(f"  Order ID: {order.id} | Status: {order.status}")
         print(f"  Bracket: Stop ${signal['stop_loss']:.2f} | Target ${signal['target']:.2f}")
+
+        # Post condensed card to #gamespoofer-trades (private trade log)
+        import subprocess
+        gamespoofer_msg = (
+            f"📊 {args.ticker} {args.action} @ ${signal['price_at_signal']:.2f} | "
+            f"Score {args.score}/10 | Conv {args.conviction}/10\n"
+            f"Stop ${signal['stop_loss']:.2f} | Target ${signal['target']:.2f} | "
+            f"Size {qty} shares (${budget:.0f})"
+        )
+        subprocess.run([
+            "openclaw", "message", "send",
+            "--channel", "discord",
+            "--target", "1469519503174926568",
+            "--message", gamespoofer_msg,
+        ], capture_output=True)
 
     except Exception as e:
         print(f"ERROR executing order: {e}")

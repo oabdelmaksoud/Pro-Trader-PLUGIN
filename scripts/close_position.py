@@ -96,6 +96,14 @@ def main():
     except Exception as e:
         print(f"Warning: ledger.record_close failed: {e}")
 
+    # Clear trailing stop HWM for closed position
+    try:
+        from tradingagents.risk.trailing_stop import TrailingStopManager
+        TrailingStopManager().clear(args.ticker)
+        print(f"Trailing stop HWM cleared for {args.ticker}")
+    except Exception as e:
+        print(f"Warning: trailing stop clear failed: {e}")
+
 
 if __name__ == "__main__":
     main()
