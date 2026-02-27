@@ -131,6 +131,27 @@ class AlpacaBroker:
     # ── Market Data ───────────────────────────────────────────────────────────
 
     def get_latest_bar(self, symbol: str):
+        """Get latest bar. Checks live_prices.json first (if WebSocket stream is running)."""
+        import json
+        from pathlib import Path
+        prices_file = Path(__file__).parent.parent.parent / "logs" / "live_prices.json"
+        if prices_file.exists():
+            try:
+                data = json.loads(prices_file.read_text())
+                if symbol in data:
+                    p = data[symbol]
+                    # Return a dict-like object compatible with REST bar
+                    class LivePrice:
+                        def __init__(self, d):
+                            self.close = d["price"]
+                            self.open = d["price"]
+                            self.high = d["price"]
+                            self.low = d["price"]
+                            self.volume = 0
+                            self.timestamp = d.get("timestamp", "")
+                    return LivePrice(p)
+            except Exception:
+                pass
         bars = self.api.get_bars(symbol, "1Min", limit=1).df
         return bars.iloc[-1] if not bars.empty else None
 
