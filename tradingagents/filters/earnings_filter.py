@@ -39,6 +39,18 @@ class EarningsFilter:
 
     def has_earnings_soon(self, symbol: str, days_ahead: int = 1) -> bool:
         """Returns True if earnings are within days_ahead calendar days."""
+        # Try Finnhub first (more reliable)
+        try:
+            from tradingagents.dataflows.finnhub_data import get_earnings_calendar, is_available as finnhub_available
+            if finnhub_available():
+                data = get_earnings_calendar(symbol, days_ahead=days_ahead)
+                if data.get("has_earnings"):
+                    logger.debug(f"EarningsFilter: Finnhub found earnings for {symbol} on {data.get('date')}")
+                    return True
+        except Exception as e:
+            logger.debug(f"EarningsFilter: Finnhub check failed for {symbol}: {e}")
+
+        # Fallback to yfinance
         try:
             ed = self.earnings_date(symbol)
             if ed is None:

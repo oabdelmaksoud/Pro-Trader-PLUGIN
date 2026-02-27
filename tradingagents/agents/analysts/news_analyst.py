@@ -2,6 +2,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 import time
 import json
 from tradingagents.agents.utils.agent_utils import get_news, get_global_news
+from tradingagents.agents.utils.social_data_tools import get_finnhub_news
 from tradingagents.dataflows.config import get_config
 
 
@@ -13,10 +14,12 @@ def create_news_analyst(llm):
         tools = [
             get_news,
             get_global_news,
+            get_finnhub_news,
         ]
 
         system_message = (
             "You are a news researcher tasked with analyzing recent news and trends over the past week. Please write a comprehensive report of the current state of the world that is relevant for trading and macroeconomics. Use the available tools: get_news(query, start_date, end_date) for company-specific or targeted news searches, and get_global_news(curr_date, look_back_days, limit) for broader macroeconomic news. Do not simply state the trends are mixed, provide detailed and finegrained analysis and insights that may help traders make decisions."
+            + " You also have access to get_finnhub_news for Bloomberg/Reuters quality news from Finnhub. Use it alongside the other news tools."
             + """ Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."""
         )
 
