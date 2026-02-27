@@ -262,6 +262,16 @@ def format_signal_card(
     if meta:
         lines.append(" | ".join(meta))
 
+    # Options contracts section
+    try:
+        from tradingagents.dataflows.options_chain import get_options_contracts, format_options_section
+        contracts = get_options_contracts(symbol, direction=direction, current_price=current_price)
+        if contracts:
+            lines.append("")
+            lines.append(format_options_section(contracts, direction=direction))
+    except Exception:
+        pass
+
     if notes:
         lines.append(notes)
 
