@@ -12,6 +12,7 @@ Resilience features integrated:
 - Gap 10: Market hours check
 """
 import re
+import uuid
 import json
 import logging
 from datetime import datetime, timezone
@@ -26,6 +27,7 @@ from tradingagents.filters.earnings_filter import EarningsFilter
 from tradingagents.utils.market_hours import is_market_open
 from tradingagents.learning.post_mortem import PostMortem
 from tradingagents.learning.pattern_tracker import PatternTracker
+from tradingagents.signals.signal_logger import SignalLogger
 
 logger = logging.getLogger(__name__)
 LOG_PATH = Path(__file__).parent.parent.parent / "logs" / "executions.jsonl"
@@ -41,6 +43,7 @@ class TradeExecutor:
         self.earnings_filter = EarningsFilter()
         self.post_mortem = PostMortem()
         self.pattern_tracker = PatternTracker()
+        self.signal_logger = SignalLogger()
         OPEN_TRADES_DIR.mkdir(parents=True, exist_ok=True)
 
     def parse_decision(self, text: str, symbol: str) -> dict:
@@ -83,6 +86,34 @@ class TradeExecutor:
         penalty = self.earnings_filter.score_penalty(symbol, days_ahead=1)
         return score + penalty
 
+    def _build_signal_record(self, decision: dict, acted_on: bool, skip_reason: str = None,
+                              scan_time: str = None) -> dict:
+        """Build a signal record for logging. Extracts known fields from decision."""
+        now = datetime.now(timezone.utc)
+        return {
+            "id": str(uuid.uuid4()),
+            "timestamp": now.isoformat(),
+            "scan_time": scan_time or decision.get("scan_time", now.strftime("%-H:%M")),
+            "ticker": decision.get("symbol", "UNKNOWN"),
+            "action": decision.get("action", "UNKNOWN"),
+            "score": decision.get("score", 0.0),
+            "conviction": decision.get("conviction", 0),
+            "price_at_signal": decision.get("price_at_signal", 0.0),
+            "stop_loss": decision.get("stop_loss"),
+            "target": decision.get("target"),
+            "acted_on": acted_on,
+            "skip_reason": skip_reason,
+            "analysis_summary": decision.get("reasoning", "")[:200],
+            "verified": False,
+            "price_1h_later": None,
+            "price_4h_later": None,
+            "price_eod": None,
+            "target_hit": None,
+            "stop_hit": None,
+            "signal_correct": None,
+            "accuracy_pct": None,
+        }
+
     def execute(self, decision: dict, dry_run: bool = False) -> Optional[dict]:
         """Execute the trade decision with full resilience checks."""
         action = decision["action"]
@@ -93,11 +124,17 @@ class TradeExecutor:
         if not is_market_open() and not dry_run:
             logger.info(f"Market is closed — skipping {action} on {symbol}")
             self._log(decision, order=None, dry_run=dry_run, skip_reason="market_closed")
+            self.signal_logger.log_signal(
+                self._build_signal_record(decision, acted_on=False, skip_reason="market_closed")
+            )
             return None
 
         if action == "HOLD":
             logger.info(f"HOLD on {symbol} — no order placed")
             self._log(decision, order=None, dry_run=dry_run)
+            self.signal_logger.log_signal(
+                self._build_signal_record(decision, acted_on=False, skip_reason="hold_decision")
+            )
             return None
 
         # Gap 2: Circuit breaker check
@@ -105,6 +142,12 @@ class TradeExecutor:
         if not cb_status["ok"]:
             logger.warning(f"Circuit breaker tripped — skipping {action} on {symbol}: {cb_status['reason']}")
             self._log(decision, order=None, dry_run=dry_run, skip_reason=f"circuit_breaker: {cb_status['reason']}")
+            self.signal_logger.log_signal(
+                self._build_signal_record(
+                    decision, acted_on=False,
+                    skip_reason=f"circuit_breaker: {cb_status['reason']}"
+                )
+            )
             return None
 
         # Gap 4: Earnings penalty (log it; if score-based system: adjust score)
@@ -139,6 +182,9 @@ class TradeExecutor:
             result = {"dry_run": True, "symbol": symbol, "side": side, "qty": qty, "order_class": "bracket"}
             logger.info(f"DRY RUN: would {side} {qty} {symbol} (bracket)")
             self._log(decision, order=result, dry_run=True)
+            self.signal_logger.log_signal(
+                self._build_signal_record(decision, acted_on=False, skip_reason="dry_run")
+            )
             return result
 
         # Gap 9: Trade lock to prevent race conditions
@@ -147,6 +193,9 @@ class TradeExecutor:
         if not acquired:
             logger.error(f"TradeLock: could not acquire lock — skipping {action} on {symbol}")
             self._log(decision, order=None, dry_run=dry_run, skip_reason="trade_lock_timeout")
+            self.signal_logger.log_signal(
+                self._build_signal_record(decision, acted_on=False, skip_reason="trade_lock_timeout")
+            )
             return None
 
         try:
@@ -165,6 +214,9 @@ class TradeExecutor:
             }
             logger.info(f"BRACKET ORDER PLACED: {result}")
             self._log(decision, order=result, dry_run=False)
+            self.signal_logger.log_signal(
+                self._build_signal_record(decision, acted_on=True)
+            )
             return result
         finally:
             lock.release()

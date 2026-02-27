@@ -211,3 +211,83 @@ class PostMortem:
                 return json.load(f)
         except Exception:
             return {}
+
+    def analyze_signal_patterns(self):
+        """
+        Uses signal accuracy stats to enhance post-mortem analysis.
+
+        - If signal accuracy for a specific scan time < 55%: add note to LESSONS.md
+        - If signal accuracy for a specific ticker < 50%: add to PatternTracker as "unreliable_ticker"
+
+        Called automatically by the verification cron after each verification pass.
+        """
+        try:
+            from tradingagents.signals.signal_logger import SignalLogger
+            from tradingagents.learning.pattern_tracker import PatternTracker
+        except ImportError as e:
+            logger.warning(f"analyze_signal_patterns: import failed: {e}")
+            return
+
+        sl = SignalLogger()
+        pt = PatternTracker()
+        stats = sl.get_accuracy_stats()
+
+        if stats["verified_signals"] < 5:
+            logger.info("analyze_signal_patterns: not enough verified signals yet")
+            return
+
+        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        notes = []
+
+        # Check scan-time accuracy
+        for scan_time, data in stats.get("by_scan_time", {}).items():
+            if data["count"] >= 3 and data["accuracy"] < 0.55:
+                msg = (
+                    f"Scan window {scan_time} accuracy is {data['accuracy']*100:.0f}% "
+                    f"({data['count']} signals) — below 55% threshold"
+                )
+                notes.append(msg)
+                logger.warning(f"Low scan-time accuracy: {msg}")
+
+        # Check ticker accuracy
+        for ticker, data in stats.get("by_ticker", {}).items():
+            if data["count"] >= 3 and data["accuracy"] < 0.50:
+                msg = (
+                    f"Ticker {ticker} accuracy is {data['accuracy']*100:.0f}% "
+                    f"({data['count']} signals) — unreliable"
+                )
+                notes.append(msg)
+                logger.warning(f"Unreliable ticker: {msg}")
+                # Add to PatternTracker as unreliable_ticker
+                try:
+                    pt.record_pattern("unreliable_ticker", {
+                        "ticker": ticker,
+                        "accuracy": data["accuracy"],
+                        "signal_count": data["count"],
+                        "flagged_at": timestamp,
+                    })
+                    logger.info(f"PatternTracker updated: {ticker} flagged as unreliable_ticker")
+                except Exception as e:
+                    logger.warning(f"PatternTracker update failed for {ticker}: {e}")
+
+        # Write to LESSONS.md
+        if notes:
+            LESSONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+            if not LESSONS_FILE.exists():
+                LESSONS_FILE.write_text(
+                    "# CooperCorp Trading — Lessons Learned\n\n"
+                    "Auto-updated by PostMortem after every losing trade.\n\n"
+                    "## Active Adjustments (applied to every scan)\n_None yet._\n\n"
+                    "## Recurring Mistakes (2+ occurrences)\n_None yet._\n\n"
+                    "## Individual Trade Post-Mortems\n\n"
+                )
+            existing = LESSONS_FILE.read_text()
+            section = (
+                f"\n### Signal Pattern Analysis — {timestamp}\n"
+                + "\n".join(f"- {n}" for n in notes)
+                + "\n\n---\n"
+            )
+            LESSONS_FILE.write_text(existing + section)
+            logger.info(f"analyze_signal_patterns: wrote {len(notes)} notes to LESSONS.md")
+        else:
+            logger.info("analyze_signal_patterns: all scan times and tickers within acceptable accuracy")
