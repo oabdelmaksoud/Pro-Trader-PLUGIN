@@ -104,6 +104,26 @@ def main():
     except Exception as e:
         print(f"Warning: trailing stop clear failed: {e}")
 
+    # Wire TradingAgents reflection system
+    try:
+        from tradingagents.graph.trading_graph import TradingAgentsGraph
+        from tradingagents.default_config import DEFAULT_CONFIG
+
+        COOPER_CONFIG = {
+            "llm_provider": "anthropic",
+            "deep_think_llm": "claude-opus-4-6",
+            "quick_think_llm": "claude-sonnet-4-6",
+        }
+        merged = {**DEFAULT_CONFIG, **COOPER_CONFIG}
+        graph = TradingAgentsGraph(config=merged)
+
+        # reflect_and_remember takes returns_losses string
+        outcome = f"{args.ticker}: {'+' if pnl_dollar >= 0 else ''}{pnl_dollar:.2f} ({pnl_pct:.1f}%) — {args.reason}"
+        graph.reflect_and_remember(outcome)
+        print(f"Reflection recorded for agent memory: {outcome}")
+    except Exception as e:
+        print(f"WARN: Reflection failed (non-fatal): {e}")
+
 
 if __name__ == "__main__":
     main()

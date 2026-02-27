@@ -98,47 +98,10 @@ class FinancialSituationMemory:
         self.bm25 = None
 
 
+# Memory populated at runtime from SHARED_KNOWLEDGE.json and recent market data
+# (Hardcoded example memories removed — agents start with clean context)
+
 if __name__ == "__main__":
-    # Example usage
     matcher = FinancialSituationMemory("test_memory")
-
-    # Example data
-    example_data = [
-        (
-            "High inflation rate with rising interest rates and declining consumer spending",
-            "Consider defensive sectors like consumer staples and utilities. Review fixed-income portfolio duration.",
-        ),
-        (
-            "Tech sector showing high volatility with increasing institutional selling pressure",
-            "Reduce exposure to high-growth tech stocks. Look for value opportunities in established tech companies with strong cash flows.",
-        ),
-        (
-            "Strong dollar affecting emerging markets with increasing forex volatility",
-            "Hedge currency exposure in international positions. Consider reducing allocation to emerging market debt.",
-        ),
-        (
-            "Market showing signs of sector rotation with rising yields",
-            "Rebalance portfolio to maintain target allocations. Consider increasing exposure to sectors benefiting from higher rates.",
-        ),
-    ]
-
-    # Add the example situations and recommendations
-    matcher.add_situations(example_data)
-
-    # Example query
-    current_situation = """
-    Market showing increased volatility in tech sector, with institutional investors
-    reducing positions and rising interest rates affecting growth stock valuations
-    """
-
-    try:
-        recommendations = matcher.get_memories(current_situation, n_matches=2)
-
-        for i, rec in enumerate(recommendations, 1):
-            print(f"\nMatch {i}:")
-            print(f"Similarity Score: {rec['similarity_score']:.2f}")
-            print(f"Matched Situation: {rec['matched_situation']}")
-            print(f"Recommendation: {rec['recommendation']}")
-
-    except Exception as e:
-        print(f"Error during recommendation: {str(e)}")
+    print("Memory system initialized. Add situations at runtime via add_situations().")
+    print(f"Documents: {len(matcher.documents)}")

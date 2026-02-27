@@ -16,6 +16,7 @@ REPO_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 LEDGER_PATH = REPO_ROOT / "logs" / "ledger.jsonl"
+EQUITY_CURVE_PATH = REPO_ROOT / "logs" / "equity_curve.jsonl"
 LESSONS_PATH = REPO_ROOT / "logs" / "LESSONS.md"
 PATTERNS_PATH = REPO_ROOT / "logs" / "patterns.json"
 ADJUSTMENTS_PATH = REPO_ROOT / "logs" / "score_adjustments.json"
@@ -62,6 +63,48 @@ def load_adjustments() -> dict:
             return json.load(f)
     except Exception:
         return {}
+
+
+def load_equity_data() -> list:
+    """Load equity curve data."""
+    if not EQUITY_CURVE_PATH.exists():
+        return []
+    records = []
+    with open(EQUITY_CURVE_PATH) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                records.append(json.loads(line))
+            except Exception:
+                pass
+    return records
+
+
+def format_equity_chart(equity_data: list) -> str:
+    """Simple ASCII chart of portfolio equity."""
+    if not equity_data:
+        return "No equity data yet."
+    values = [e["equity"] for e in equity_data[-30:]]  # Last 30 days
+    min_v, max_v = min(values), max(values)
+    if min_v == max_v:
+        return f"Equity: ${values[-1]:,.0f} (flat)"
+
+    height = 8
+    lines = []
+    for row in range(height, 0, -1):
+        threshold = min_v + (max_v - min_v) * (row / height)
+        line = ""
+        for v in values:
+            line += "█" if v >= threshold else " "
+        label = f"${threshold:,.0f}" if row in [height, height//2, 1] else ""
+        lines.append(f"{label:>10} │{line}")
+
+    lines.append(f"{'':>10} └{'─'*len(values)}")
+    start_date = equity_data[-30]["date"] if len(equity_data) >= 30 else equity_data[0]["date"]
+    lines.append(f"{'':>10}  {start_date} → today")
+    return "\n".join(lines)
 
 
 def compute_stats(trades: list) -> dict:
@@ -170,8 +213,11 @@ def main():
     stats = compute_stats(trades)
     patterns = load_patterns()
     adjustments = load_adjustments()
+    equity_data = load_equity_data()
+    equity_chart = format_equity_chart(equity_data)
 
     report = build_report(stats, patterns, adjustments)
+    report += f"\n\n**Equity Curve (last 30 days)**\n```\n{equity_chart}\n```"
     print(report)
 
     # Post to both Discord channels

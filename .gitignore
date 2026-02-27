@@ -219,3 +219,18 @@ __marimo__/
 **/data_cache/
 logs/*.jsonl
 logs/runs/
+
+# CooperCorp operational state files (runtime data, not source)
+logs/hwm.json
+logs/partial_exits.json
+logs/orphaned_positions.json
+logs/open_trades/
+logs/archive/
+logs/reinforcements.jsonl
+logs/executions.jsonl
+
+# macOS
+.DS_Store
+
+# Strategy config (committed — remove if sensitive)
+# config/strategy.json
