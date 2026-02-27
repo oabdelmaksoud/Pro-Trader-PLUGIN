@@ -9,9 +9,9 @@ API_BASE_URL = "https://www.alphavantage.co/query"
 
 def get_api_key() -> str:
     """Retrieve the API key for Alpha Vantage from environment variables."""
-    api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
+    api_key = os.getenv("ALPHA_VANTAGE_KEY") or os.getenv("ALPHA_VANTAGE_API_KEY")
     if not api_key:
-        raise ValueError("ALPHA_VANTAGE_API_KEY environment variable is not set.")
+        raise ValueError("ALPHA_VANTAGE_KEY environment variable is not set.")
     return api_key
 
 def format_datetime_for_api(date_input) -> str:

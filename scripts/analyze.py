@@ -16,17 +16,26 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env")
 
+import os
+
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
 
+_alpha_key = os.getenv("ALPHA_VANTAGE_KEY", "")
+
 COOPER_CONFIG = {
     "llm_provider": "anthropic",
-    "deep_think_llm": "claude-opus-4-6",
-    "quick_think_llm": "claude-sonnet-4-6",
+    "deep_think_llm": "claude-opus-4-6",      # Trader + Bull + Bear use this
+    "quick_think_llm": "claude-sonnet-4-6",    # Analysts use this
     "max_debate_rounds": 2,
     "max_risk_discuss_rounds": 2,
-    "data_vendor": "yfinance",
     "online_tools": True,
+    "data_vendors": {
+        "core_stock_apis": "yfinance",
+        "technical_indicators": "yfinance",
+        "fundamental_data": "yfinance",
+        "news_data": "alpha_vantage" if _alpha_key else "yfinance",
+    },
 }
 
 
