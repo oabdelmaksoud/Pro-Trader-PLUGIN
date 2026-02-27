@@ -115,6 +115,14 @@ def main():
         print(f"SKIP: At position limit ({len(positions)} positions)")
         return
 
+    # Gate 4b: Already own this ticker? Don't double-buy
+    already_owned = any(p.symbol == args.ticker for p in positions)
+    if args.action == "BUY" and already_owned:
+        signal["skip_reason"] = f"Already hold {args.ticker}"
+        logger.log_signal(signal)
+        print(f"SKIP: Already own {args.ticker}")
+        return
+
     # Gate 5: Trade lock
     lock = TradeLock()
     if not lock.acquire():

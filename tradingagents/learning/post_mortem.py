@@ -42,16 +42,24 @@ class PostMortem:
     }
 
     def _web_search(self, query: str) -> str:
-        """Run a web search via the openclaw CLI and return the result text."""
+        """Get relevant news/info using yfinance news for the ticker."""
         try:
-            result = subprocess.run(
-                ["openclaw", "search", query],
-                capture_output=True, text=True, timeout=30
-            )
-            return result.stdout[:2000] if result.stdout else ""
+            import re
+            ticker_match = re.search(r'\b([A-Z]{1,5})\b', query)
+            if ticker_match:
+                import yfinance as yf
+                t = yf.Ticker(ticker_match.group(1))
+                news = t.news
+                if news:
+                    summaries = []
+                    for article in news[:5]:
+                        title = article.get("title", "")
+                        summaries.append(title)
+                    return "\n".join(summaries)
+            return f"No news found for query: {query}"
         except Exception as e:
             logger.warning(f"Web search failed: {e}")
-            return ""
+            return f"Search failed: {e}"
 
     def analyze(self, trade: dict) -> dict:
         """

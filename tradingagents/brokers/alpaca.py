@@ -121,6 +121,74 @@ class AlpacaBroker:
     def get_bars(self, symbol: str, timeframe: str = "1Day", limit: int = 30):
         return self.api.get_bars(symbol, timeframe, limit=limit).df
 
+    # ── Intraday / Pre-market Data ───────────────────────────────────────────
+
+    def get_intraday_bars(self, symbol: str, timeframe: str = "5Min", limit: int = 78) -> list:
+        """
+        Get intraday bars for today using Alpaca's market data API.
+        Returns list of {t, o, h, l, c, v} dicts.
+        timeframe: "1Min", "5Min", "15Min", "1H"
+        """
+        from alpaca.data.historical import StockHistoricalDataClient
+        from alpaca.data.requests import StockBarsRequest
+        from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
+        from datetime import datetime
+        import pytz
+
+        data_client = StockHistoricalDataClient(
+            os.environ.get("ALPACA_API_KEY"),
+            os.environ.get("ALPACA_SECRET_KEY"),
+        )
+
+        tf_map = {
+            "1Min": TimeFrame(1, TimeFrameUnit.Minute),
+            "5Min": TimeFrame(5, TimeFrameUnit.Minute),
+            "15Min": TimeFrame(15, TimeFrameUnit.Minute),
+            "1H": TimeFrame(1, TimeFrameUnit.Hour),
+        }
+        tf = tf_map.get(timeframe, TimeFrame(5, TimeFrameUnit.Minute))
+
+        et = pytz.timezone("America/New_York")
+        today = datetime.now(et).date()
+        start = et.localize(datetime.combine(today, datetime.min.time().replace(hour=9, minute=30)))
+
+        request = StockBarsRequest(
+            symbol_or_symbols=[symbol],
+            timeframe=tf,
+            start=start,
+            limit=limit,
+        )
+        bars = data_client.get_stock_bars(request)
+        result = []
+        for bar in bars[symbol]:
+            result.append({
+                "t": str(bar.timestamp),
+                "o": float(bar.open),
+                "h": float(bar.high),
+                "l": float(bar.low),
+                "c": float(bar.close),
+                "v": int(bar.volume),
+            })
+        return result
+
+    def get_premarket_change(self, symbol: str) -> dict:
+        """Returns pre-market % change vs yesterday's close."""
+        try:
+            import yfinance as yf
+            t = yf.Ticker(symbol)
+            info = t.fast_info
+            prev_close = info.previous_close
+            pre_price = info.pre_market_price or info.last_price
+            change_pct = ((pre_price - prev_close) / prev_close) * 100
+            return {
+                "symbol": symbol,
+                "prev_close": prev_close,
+                "pre_price": pre_price,
+                "change_pct": round(change_pct, 2),
+            }
+        except Exception as e:
+            return {"symbol": symbol, "error": str(e)}
+
     # ── Convenience ───────────────────────────────────────────────────────────
 
     def status_summary(self) -> dict:
