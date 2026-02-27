@@ -23,21 +23,26 @@ from typing import Optional
 import yfinance as yf
 
 
-def _fetch_recent_closes(symbol: str, bars: int = 20) -> list:
-    """Fetch recent close prices for ASCII chart."""
+def _fetch_recent_closes(symbol: str, bars: int = 24) -> list:
+    """Fetch recent close prices for ASCII chart — intraday 30m bars for today's detail."""
+    sym_map = {
+        "ES": "ES=F", "NQ": "NQ=F", "YM": "YM=F", "RTY": "RTY=F",
+        "GC": "GC=F", "CL": "CL=F", "BTC": "BTC-USD", "SPX": "^GSPC",
+    }
+    sym = sym_map.get(symbol.upper(), symbol)
     try:
-        # Handle futures/non-standard symbols
-        sym_map = {
-            "ES": "ES=F", "NQ": "NQ=F", "YM": "YM=F", "RTY": "RTY=F",
-            "GC": "GC=F", "CL": "CL=F", "BTC": "BTC-USD",
-        }
-        sym = sym_map.get(symbol.upper(), symbol)
         tk = yf.Ticker(sym)
+        # Try 30-min bars first (best intraday detail)
+        hist = tk.history(period="5d", interval="30m")
+        if len(hist) >= 8:
+            return list(hist["Close"].tail(bars))
+        # Fall back to 1h
         hist = tk.history(period="5d", interval="1h")
-        if hist.empty:
-            hist = tk.history(period="5d", interval="1d")
-        closes = list(hist["Close"].tail(bars))
-        return closes
+        if len(hist) >= 4:
+            return list(hist["Close"].tail(bars))
+        # Fall back to daily
+        hist = tk.history(period="30d", interval="1d")
+        return list(hist["Close"].tail(bars))
     except Exception:
         return []
 
@@ -59,10 +64,19 @@ def _draw_ascii_chart(
     if not prices:
         prices = [current]
 
-    # Price range: from below stop to above t2 (or t1)
-    top_level = (t2 or t1) * 1.005
-    bottom_level = stop * 0.995
+    # Price range: encompass BOTH key levels AND actual historical prices
+    key_levels = [entry, stop, t1, current]
+    if t2:
+        key_levels.append(t2)
+    all_prices = prices + key_levels
+    data_min = min(all_prices)
+    data_max = max(all_prices)
+    padding = (data_max - data_min) * 0.08  # 8% padding
+    top_level = data_max + padding
+    bottom_level = data_min - padding
     price_range = top_level - bottom_level
+    if price_range == 0:
+        price_range = current * 0.1
 
     # Normalize prices to chart height
     def to_row(price: float) -> int:
@@ -195,6 +209,16 @@ def format_signal_card(
     else:
         emoji = "⚫"
 
+    # Auto-fetch live change if not provided
+    if change_24h == 0.0:
+        try:
+            sym_map = {"ES": "ES=F", "NQ": "NQ=F", "BTC": "BTC-USD"}
+            sym = sym_map.get(symbol.upper(), symbol)
+            hist = yf.Ticker(sym).history(period="2d", interval="1d")
+            if len(hist) >= 2:
+                change_24h = (float(hist["Close"].iloc[-1]) - float(hist["Close"].iloc[-2])) / float(hist["Close"].iloc[-2]) * 100
+        except Exception:
+            pass
     change_sign = "+" if change_24h >= 0 else ""
     change_str = f"{change_sign}{change_24h:.2f}%"
 
