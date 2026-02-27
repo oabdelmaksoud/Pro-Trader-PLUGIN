@@ -69,6 +69,43 @@ class AlpacaBroker:
             time_in_force=time_in_force,
         )
 
+    def submit_bracket_order(
+        self,
+        symbol: str,
+        qty: float,
+        side: str,  # "buy" | "sell"
+        stop_loss_pct: float = 0.03,
+        take_profit_pct: float = 0.08,
+    ):
+        """
+        Submit a bracket order with hard stop-loss and take-profit legs.
+        For longs:  stop = entry * (1 - stop_loss_pct), tp = entry * (1 + take_profit_pct)
+        For shorts: stop = entry * (1 + stop_loss_pct), tp = entry * (1 - take_profit_pct)
+        """
+        # Get current price as entry estimate
+        bar = self.get_latest_bar(symbol)
+        if bar is None:
+            raise ValueError(f"No price data for {symbol}")
+        entry = float(bar["close"])
+
+        if side == "buy":
+            stop_price = round(entry * (1 - stop_loss_pct), 2)
+            take_profit_price = round(entry * (1 + take_profit_pct), 2)
+        else:
+            stop_price = round(entry * (1 + stop_loss_pct), 2)
+            take_profit_price = round(entry * (1 - take_profit_pct), 2)
+
+        return self.api.submit_order(
+            symbol=symbol,
+            qty=qty,
+            side=side,
+            type="market",
+            time_in_force="day",
+            order_class="bracket",
+            stop_loss={"stop_price": str(stop_price)},
+            take_profit={"limit_price": str(take_profit_price)},
+        )
+
     def cancel_all_orders(self):
         return self.api.cancel_all_orders()
 

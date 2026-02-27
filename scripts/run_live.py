@@ -18,6 +18,7 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from tradingagents.graph.trading_graph import TradingAgentsGraph
+from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.execution import TradeExecutor
 from tradingagents.discord_reporter import post_analysis, post_trade
 
@@ -51,7 +52,8 @@ def main():
 
     # Run full multi-agent analysis
     print("\n⏳ Running multi-agent analysis (may take a few minutes)…")
-    graph = TradingAgentsGraph(config=COOPER_CONFIG)
+    merged = {**DEFAULT_CONFIG, **COOPER_CONFIG}
+    graph = TradingAgentsGraph(config=merged)
     state, decision = graph.propagate(ticker, trade_date)
     print(f"\n✅ Analysis complete")
     print(f"\n📋 Final Decision:\n{decision[:800]}")
