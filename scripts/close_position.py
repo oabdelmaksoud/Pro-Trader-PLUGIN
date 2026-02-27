@@ -49,6 +49,22 @@ def main():
     exit_price = args.exit_price or current_price
     side = "sell" if qty > 0 else "buy"
 
+    # Detect if this is an options contract (OCC symbol contains letters+digits+C/P+8digits)
+    import re
+    is_options = bool(re.match(r'^[A-Z]{1,6}\d{6}[CP]\d{8}$', args.ticker))
+    if is_options:
+        print(f"Options contract detected: {args.ticker}")
+        # Options use sell_to_close instead of submit_order
+        if not args.dry_run:
+            try:
+                order = broker.sell_to_close(args.ticker, int(abs(qty)))
+                print(f"Sell to close: {order.symbol} {order.qty} @ market | status: {order.status}")
+            except Exception as e:
+                print(f"sell_to_close failed: {e}")
+        pnl_per_contract = pnl_dollar / abs(qty) if qty != 0 else 0
+        print(f"Options P&L: {pnl_pct:.1f}% | ${pnl_dollar:.2f} ({abs(qty):.0f} contracts × ${pnl_per_contract:.2f})")
+        return  # Options don't need the learning system (no same reflection)
+
     print(f"Position: {args.ticker} qty={qty} entry=${entry_price:.2f} current=${current_price:.2f} P&L={pnl_pct:.1f}% (${pnl_dollar:.2f})")
 
     if not args.dry_run:

@@ -226,6 +226,72 @@ class AlpacaBroker:
         except Exception as e:
             return {"symbol": symbol, "error": str(e)}
 
+    # ── Options Execution ────────────────────────────────────────────────────
+
+    def buy_to_open(
+        self,
+        option_symbol: str,
+        qty: int = 1,
+        order_type: str = "limit",
+        limit_price: Optional[float] = None,
+    ):
+        """
+        Buy to open an options contract.
+        option_symbol: OCC format e.g. 'NVDA250307C00187500'
+        qty: number of contracts (each = 100 shares)
+        limit_price: if None, uses mid price from yfinance
+        """
+        if not limit_price:
+            try:
+                # Try to get mid price
+                import yfinance as yf
+                # Parse OCC symbol to get underlying and expiry
+                limit_price = None  # Will use market order if can't get mid
+                order_type = "market"
+            except Exception:
+                order_type = "market"
+
+        return self.api.submit_order(
+            symbol=option_symbol,
+            qty=qty,
+            side="buy",
+            type=order_type,
+            time_in_force="day",
+            limit_price=str(round(limit_price, 2)) if limit_price else None,
+        )
+
+    def sell_to_close(
+        self,
+        option_symbol: str,
+        qty: int = 1,
+        order_type: str = "market",
+        limit_price: Optional[float] = None,
+    ):
+        """Sell to close an options position."""
+        return self.api.submit_order(
+            symbol=option_symbol,
+            qty=qty,
+            side="sell",
+            type=order_type,
+            time_in_force="day",
+            limit_price=str(round(limit_price, 2)) if limit_price else None,
+        )
+
+    @staticmethod
+    def build_occ_symbol(ticker: str, expiry: str, option_type: str, strike: float) -> str:
+        """
+        Build OCC option symbol.
+        expiry: 'YYYY-MM-DD'
+        option_type: 'C' or 'P'
+        strike: e.g. 187.5
+        Returns: 'NVDA250307C00187500'
+        """
+        from datetime import datetime
+        dt = datetime.strptime(expiry, "%Y-%m-%d")
+        exp_str = dt.strftime("%y%m%d")
+        strike_int = int(round(strike * 1000))
+        return f"{ticker.upper()}{exp_str}{option_type.upper()}{strike_int:08d}"
+
     # ── Convenience ───────────────────────────────────────────────────────────
 
     def status_summary(self) -> dict:

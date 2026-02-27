@@ -207,7 +207,7 @@ def get_newsapi_news(sym: str) -> list:
 
 
 def _get_market_context(sym: str = None) -> dict:
-    """VIX + Fear & Greed + sector ETF + BTC signal."""
+    """VIX + Fear & Greed + sector ETF + BTC + IV rank + relative strength."""
     try:
         from tradingagents.dataflows.fear_greed import get_vix, get_fear_greed
         from tradingagents.dataflows.market_context import get_sector_momentum, get_btc_signal
@@ -215,7 +215,21 @@ def _get_market_context(sym: str = None) -> dict:
         fg = get_fear_greed()
         sector = get_sector_momentum(sym) if sym else {}
         btc = get_btc_signal()
-        return {"vix": vix, "fear_greed": fg, "sector_momentum": sector, "btc_signal": btc}
+        result = {"vix": vix, "fear_greed": fg, "sector_momentum": sector, "btc_signal": btc}
+
+        if sym:
+            try:
+                from tradingagents.dataflows.iv_percentile import get_iv_rank
+                result["iv_rank"] = get_iv_rank(sym)
+            except Exception:
+                pass
+            try:
+                from tradingagents.dataflows.relative_strength import get_relative_strength
+                result["relative_strength"] = get_relative_strength(sym)
+            except Exception:
+                pass
+
+        return result
     except Exception as e:
         return {"error": str(e)}
 

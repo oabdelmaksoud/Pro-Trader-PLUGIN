@@ -117,7 +117,18 @@ def main():
         print(f"SKIP: At position limit ({len(positions)} positions)")
         return
 
-    # Gate 4b: Correlation filter
+    # Gate 4b: Portfolio heat check
+    from tradingagents.risk.portfolio_heat import PortfolioHeat
+    heat = PortfolioHeat(broker)
+    position_size_pct = float(strategy.get("position", {}).get("default_pct", 0.05)) * 100
+    heat_ok, heat_reason = heat.can_add_position(args.ticker, position_size_pct)
+    if not heat_ok and args.action == "BUY":
+        signal["skip_reason"] = f"Portfolio heat: {heat_reason}"
+        logger.log_signal(signal)
+        print(f"SKIP: {heat_reason}")
+        return
+
+    # Gate 4c: Correlation filter
     corr = CorrelationFilter(broker)
     corr_check = corr.is_too_correlated(args.ticker)
     if not corr_check["ok"] and args.action == "BUY":

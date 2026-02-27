@@ -46,7 +46,8 @@ def load_signals(days=None, scan_time=None, action=None):
 def simulate_trade(signal):
     """Simulate what would have happened if this signal was acted on."""
     ticker = signal["ticker"]
-    date_str = signal["timestamp"][:10]
+    ts_raw = signal.get("timestamp", signal.get("ts", ""))
+    date_str = ts_raw[:10] if ts_raw else __import__("datetime").date.today().isoformat()
     entry = signal.get("price_at_signal", 0)
     stop = signal.get("stop_loss", entry * 0.97)
     target = signal.get("target", entry * 1.08)
