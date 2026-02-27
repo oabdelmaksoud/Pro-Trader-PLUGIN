@@ -202,19 +202,52 @@ def main():
         print(f"  Order ID: {order.id} | Status: {order.status}")
         print(f"  Bracket: Stop ${signal['stop_loss']:.2f} | Target ${signal['target']:.2f}")
 
-        # Post condensed card to #gamespoofer-trades (private trade log)
+        # Post signal card (standardized format) to #paper-trades + #gamespoofer-trades
         import subprocess
-        gamespoofer_msg = (
-            f"📊 {args.ticker} {args.action} @ ${signal['price_at_signal']:.2f} | "
-            f"Score {args.score}/10 | Conv {args.conviction}/10\n"
-            f"Stop ${signal['stop_loss']:.2f} | Target ${signal['target']:.2f} | "
-            f"Size {qty} shares (${budget:.0f})"
-        )
+        try:
+            from tradingagents.discord_signal_card import format_signal_card
+            price = signal["price_at_signal"]
+            t1 = signal["target"]
+            t2 = round(price + (t1 - price) * 1.5, 2)  # Extended T2
+            direction = "LONG" if args.action == "BUY" else "SHORT"
+            card = format_signal_card(
+                symbol=args.ticker,
+                name=args.ticker,
+                direction=direction,
+                current_price=price,
+                change_24h=0.0,  # Live change fetched inside
+                entry=price,
+                stop=signal["stop_loss"],
+                t1=t1,
+                t2=t2,
+                score=float(args.score),
+                conviction=int(args.conviction),
+                catalyst=args.analysis[:80] if args.analysis else None,
+                agent="Cooper 🦅",
+            )
+        except Exception as e:
+            # Fallback if chart fails
+            card = (
+                f"📊 {args.ticker} {args.action} @ ${signal['price_at_signal']:.2f} | "
+                f"Score {args.score}/10 | Conv {args.conviction}/10\n"
+                f"Stop ${signal['stop_loss']:.2f} | Target ${signal['target']:.2f} | "
+                f"Size {qty} shares (${budget:.0f})"
+            )
+
+        # Post to #paper-trades
+        subprocess.run([
+            "openclaw", "message", "send",
+            "--channel", "discord",
+            "--target", "1468597633756037385",
+            "--message", card,
+        ], capture_output=True)
+
+        # Post to #gamespoofer-trades (private)
         subprocess.run([
             "openclaw", "message", "send",
             "--channel", "discord",
             "--target", "1469519503174926568",
-            "--message", gamespoofer_msg,
+            "--message", card,
         ], capture_output=True)
 
     except Exception as e:

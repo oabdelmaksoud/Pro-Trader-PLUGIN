@@ -96,6 +96,60 @@ def main():
     except Exception as e:
         print(f"Warning: ledger.record_close failed: {e}")
 
+    # Post exit card to Discord (standardized signal card format)
+    try:
+        import subprocess
+        from tradingagents.discord_signal_card import format_exit_card
+        hold_str = f"{hold_minutes // 60}h {hold_minutes % 60}m" if hold_minutes > 60 else f"{hold_minutes}m"
+        direction = "LONG" if qty > 0 else "SHORT"
+
+        # Get lesson if post-mortem has one
+        lesson = None
+        try:
+            pm_file = Path(__file__).parent.parent / "logs" / "LESSONS.md"
+            if pm_file.exists():
+                recent = pm_file.read_text().split("\n")
+                for line in reversed(recent[-20:]):
+                    if "→" in line or "Lesson:" in line:
+                        lesson = line.strip().lstrip("- ").strip()
+                        break
+        except Exception:
+            pass
+
+        exit_card = format_exit_card(
+            symbol=args.ticker,
+            name=args.ticker,
+            direction=direction,
+            entry_price=entry_price,
+            exit_price=exit_price,
+            pl_pct=pnl_pct,
+            pl_dollar=pnl_dollar,
+            reason=args.reason,
+            held_time=hold_str,
+            lesson=lesson if pnl_pct < 0 else None,
+            agent="Executor ⚡",
+        )
+
+        # #paper-trades always
+        subprocess.run(["openclaw", "message", "send", "--channel", "discord",
+            "--target", "1468597633756037385", "--message", exit_card], capture_output=True)
+
+        # Route winners / losers
+        if pnl_pct >= 0:
+            subprocess.run(["openclaw", "message", "send", "--channel", "discord",
+                "--target", "1468620383019077744", "--message", exit_card], capture_output=True)
+        else:
+            subprocess.run(["openclaw", "message", "send", "--channel", "discord",
+                "--target", "1468620412849229825", "--message", exit_card], capture_output=True)
+
+        # #gamespoofer-trades (private)
+        subprocess.run(["openclaw", "message", "send", "--channel", "discord",
+            "--target", "1469519503174926568", "--message", exit_card], capture_output=True)
+
+        print(f"Exit card posted to Discord")
+    except Exception as e:
+        print(f"Warning: Discord exit card failed: {e}")
+
     # Clear trailing stop HWM for closed position
     try:
         from tradingagents.risk.trailing_stop import TrailingStopManager
