@@ -173,6 +173,41 @@ def get_newsapi_news(sym: str) -> list:
         return [{"error": str(e)}]
 
 
+def _get_market_context() -> dict:
+    """VIX + Fear & Greed — market-wide context for position sizing."""
+    try:
+        from tradingagents.dataflows.fear_greed import get_vix, get_fear_greed
+        vix = get_vix()
+        fg = get_fear_greed()
+        return {"vix": vix, "fear_greed": fg}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _get_google_news(sym: str) -> list:
+    try:
+        from tradingagents.dataflows.google_news import get_ticker_news
+        return get_ticker_news(sym, limit=5)
+    except Exception as e:
+        return [{"error": str(e)}]
+
+
+def _get_sec_filings(sym: str) -> list:
+    try:
+        from tradingagents.dataflows.sec_edgar import get_recent_filings
+        return get_recent_filings(sym, "8-K", limit=3)
+    except Exception as e:
+        return [{"error": str(e)}]
+
+
+def _get_short_interest(sym: str) -> dict:
+    try:
+        from tradingagents.dataflows.short_interest import get_finviz_short_interest
+        return get_finviz_short_interest(sym)
+    except Exception as e:
+        return {"error": str(e)}
+
+
 def get_polygon_movers() -> dict:
     """Top gainers and losers — used for Tier 3 dynamic candidates."""
     try:
@@ -194,6 +229,7 @@ def gather_ticker_data(sym: str, full: bool = False) -> dict:
         "as_of": datetime.now().isoformat(),
         "technicals": get_technicals(sym),
         "news": get_news_headlines(sym),
+        "market_context": _get_market_context() if full else {},
     }
     if full:
         data["fundamentals"] = get_fundamentals(sym)
@@ -203,6 +239,9 @@ def gather_ticker_data(sym: str, full: bool = False) -> dict:
         data["av_news"] = get_alpha_vantage_news(sym)
         data["polygon_news"] = get_polygon_news(sym)
         data["newsapi_news"] = get_newsapi_news(sym)
+        data["google_news"] = _get_google_news(sym)
+        data["sec_filings"] = _get_sec_filings(sym)
+        data["short_interest"] = _get_short_interest(sym)
     return data
 
 
