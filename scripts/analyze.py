@@ -18,8 +18,21 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 import os
 
-from tradingagents.graph.trading_graph import TradingAgentsGraph
-from tradingagents.default_config import DEFAULT_CONFIG
+# Check if Anthropic key is available before importing LangGraph
+_anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+_use_langgraph = bool(_anthropic_key)
+
+if _use_langgraph:
+    from tradingagents.graph.trading_graph import TradingAgentsGraph
+    from tradingagents.default_config import DEFAULT_CONFIG
+else:
+    import warnings
+    warnings.warn(
+        "ANTHROPIC_API_KEY not set. analyze.py requires the key for LangGraph pipeline. "
+        "For cron-based trading, use sessions_spawn via cron agentTurn (no key needed). "
+        "Set ANTHROPIC_API_KEY in .env to use this script directly.",
+        stacklevel=2
+    )
 
 _alpha_key = os.getenv("ALPHA_VANTAGE_KEY", "")
 
@@ -41,6 +54,17 @@ COOPER_CONFIG = {
 
 def run_analysis(ticker: str, trade_date: str = None) -> dict:
     """Run full pipeline and return structured result."""
+    if not _use_langgraph:
+        return {
+            "ticker": ticker,
+            "date": trade_date or str(date.today()),
+            "action": "HOLD",
+            "score": 0.0,
+            "conviction": 0,
+            "decision_text": "ERROR: ANTHROPIC_API_KEY not set. This script requires LangGraph. Use cron agentTurn (sessions_spawn) for key-free analysis.",
+            "state": {},
+            "error": "ANTHROPIC_API_KEY not set",
+        }
     trade_date = trade_date or str(date.today())
     merged = {**DEFAULT_CONFIG, **COOPER_CONFIG}
     graph = TradingAgentsGraph(config=merged)

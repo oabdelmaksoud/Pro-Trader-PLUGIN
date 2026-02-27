@@ -31,7 +31,7 @@ def get_technicals(sym: str) -> dict:
         prev = float(close.iloc[-2]) if len(close) > 1 else price
         change_pct = (price - prev) / prev * 100
 
-        # Simple RSI
+        # RSI
         delta = close.diff()
         gain = delta.clip(lower=0).rolling(14).mean()
         loss = (-delta.clip(upper=0)).rolling(14).mean()
@@ -44,6 +44,31 @@ def get_technicals(sym: str) -> dict:
         vol = float(hist["Volume"].iloc[-1])
         avg_vol = float(hist["Volume"].rolling(20).mean().iloc[-1])
 
+        # MACD (12/26/9)
+        ema12 = close.ewm(span=12, adjust=False).mean()
+        ema26 = close.ewm(span=26, adjust=False).mean()
+        macd_line = ema12 - ema26
+        signal_line = macd_line.ewm(span=9, adjust=False).mean()
+        macd_hist = macd_line - signal_line
+        macd_val = float(macd_line.iloc[-1])
+        macd_sig = float(signal_line.iloc[-1])
+        macd_histogram = float(macd_hist.iloc[-1])
+        macd_cross = None
+        if len(macd_hist) >= 2:
+            prev_hist = float(macd_hist.iloc[-2])
+            if prev_hist < 0 and macd_histogram > 0:
+                macd_cross = "bullish"  # MACD crossed above signal
+            elif prev_hist > 0 and macd_histogram < 0:
+                macd_cross = "bearish"  # MACD crossed below signal
+
+        # Bollinger Bands (20, 2)
+        bb_mid = close.rolling(20).mean()
+        bb_std = close.rolling(20).std()
+        bb_upper = float((bb_mid + 2 * bb_std).iloc[-1])
+        bb_lower = float((bb_mid - 2 * bb_std).iloc[-1])
+        bb_mid_val = float(bb_mid.iloc[-1])
+        bb_position = (price - bb_lower) / (bb_upper - bb_lower) if (bb_upper - bb_lower) > 0 else 0.5
+
         return {
             "price": round(price, 2),
             "change_pct": round(change_pct, 2),
@@ -53,6 +78,14 @@ def get_technicals(sym: str) -> dict:
             "volume_ratio": round(vol / avg_vol, 2) if avg_vol else None,
             "52w_high": round(float(hist["Close"].max()), 2),
             "52w_low": round(float(hist["Close"].min()), 2),
+            "macd": round(macd_val, 4),
+            "macd_signal": round(macd_sig, 4),
+            "macd_histogram": round(macd_histogram, 4),
+            "macd_cross": macd_cross,  # "bullish" | "bearish" | None
+            "bb_upper": round(bb_upper, 2),
+            "bb_lower": round(bb_lower, 2),
+            "bb_position": round(bb_position, 3),  # 0=at lower, 1=at upper, 0.5=mid
+            "bb_squeeze": (bb_upper - bb_lower) / bb_mid_val < 0.05,  # tight bands = breakout coming
         }
     except Exception as e:
         return {"error": str(e)}
@@ -173,13 +206,16 @@ def get_newsapi_news(sym: str) -> list:
         return [{"error": str(e)}]
 
 
-def _get_market_context() -> dict:
-    """VIX + Fear & Greed — market-wide context for position sizing."""
+def _get_market_context(sym: str = None) -> dict:
+    """VIX + Fear & Greed + sector ETF + BTC signal."""
     try:
         from tradingagents.dataflows.fear_greed import get_vix, get_fear_greed
+        from tradingagents.dataflows.market_context import get_sector_momentum, get_btc_signal
         vix = get_vix()
         fg = get_fear_greed()
-        return {"vix": vix, "fear_greed": fg}
+        sector = get_sector_momentum(sym) if sym else {}
+        btc = get_btc_signal()
+        return {"vix": vix, "fear_greed": fg, "sector_momentum": sector, "btc_signal": btc}
     except Exception as e:
         return {"error": str(e)}
 
@@ -229,7 +265,7 @@ def gather_ticker_data(sym: str, full: bool = False) -> dict:
         "as_of": datetime.now().isoformat(),
         "technicals": get_technicals(sym),
         "news": get_news_headlines(sym),
-        "market_context": _get_market_context() if full else {},
+        "market_context": _get_market_context(sym) if full else {},
     }
     if full:
         data["fundamentals"] = get_fundamentals(sym)
@@ -266,6 +302,17 @@ def score_ticker(data: dict) -> float:
     if vol_ratio and vol_ratio > 2.5:
         score += 0.3  # unusual volume
 
+    # MACD signals
+    if tech.get("macd_cross") == "bullish":
+        score += 0.7  # fresh bullish MACD cross
+    elif tech.get("macd_histogram", 0) > 0 and tech.get("macd", 0) > 0:
+        score += 0.3  # MACD positive momentum
+    if tech.get("bb_squeeze"):
+        score += 0.4  # Bollinger squeeze = breakout setup
+    bb_pos = tech.get("bb_position", 0.5)
+    if 0.4 < bb_pos < 0.7:
+        score += 0.2  # healthy mid-band momentum
+
     change = tech.get("change_pct", 0)
     if 1 < change < 5:
         score += 0.3
@@ -292,12 +339,23 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--tickers", required=False, default="", help="Comma-separated tickers")
     parser.add_argument("--movers", action="store_true", help="Get top market movers (Tier 3 candidates)")
+    parser.add_argument("--gaps", action="store_true", help="Get pre-market gap candidates")
+    parser.add_argument("--context", action="store_true", help="Get market-wide context (VIX, F&G, sector, BTC)")
     parser.add_argument("--full", action="store_true", help="Include fundamentals, options, sentiment")
     parser.add_argument("--score", action="store_true", help="Include pre-scores")
     args = parser.parse_args()
 
     if args.movers:
         print(json.dumps(get_polygon_movers(), indent=2))
+        return
+
+    if args.gaps:
+        from tradingagents.dataflows.market_context import get_premarket_gaps
+        print(json.dumps(get_premarket_gaps(), indent=2))
+        return
+
+    if args.context:
+        print(json.dumps(_get_market_context(), indent=2))
         return
 
     if not args.tickers:
