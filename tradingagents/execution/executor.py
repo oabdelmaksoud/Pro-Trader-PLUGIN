@@ -24,9 +24,12 @@ from tradingagents.risk.trade_lock import TradeLock
 from tradingagents.risk.trade_tags import TradeTagger
 from tradingagents.filters.earnings_filter import EarningsFilter
 from tradingagents.utils.market_hours import is_market_open
+from tradingagents.learning.post_mortem import PostMortem
+from tradingagents.learning.pattern_tracker import PatternTracker
 
 logger = logging.getLogger(__name__)
 LOG_PATH = Path(__file__).parent.parent.parent / "logs" / "executions.jsonl"
+OPEN_TRADES_DIR = Path(__file__).parent.parent.parent / "logs" / "open_trades"
 
 
 class TradeExecutor:
@@ -36,6 +39,9 @@ class TradeExecutor:
         self.circuit_breaker = CircuitBreaker(self.broker)
         self.trade_tagger = TradeTagger()
         self.earnings_filter = EarningsFilter()
+        self.post_mortem = PostMortem()
+        self.pattern_tracker = PatternTracker()
+        OPEN_TRADES_DIR.mkdir(parents=True, exist_ok=True)
 
     def parse_decision(self, text: str, symbol: str) -> dict:
         """Extract BUY/SELL/HOLD action from agent output text."""
@@ -162,6 +168,93 @@ class TradeExecutor:
             return result
         finally:
             lock.release()
+
+    def save_open_trade(self, symbol: str, side: str, entry_price: float, qty: float, analysis_text: str = ""):
+        """Persist open trade details + entry analysis for post-mortem use."""
+        trade_file = OPEN_TRADES_DIR / f"{symbol.upper()}.json"
+        data = {
+            "symbol": symbol.upper(),
+            "side": side,
+            "entry_price": entry_price,
+            "qty": qty,
+            "analysis_at_entry": analysis_text,
+            "opened_at": datetime.now(timezone.utc).isoformat(),
+            "date": datetime.now(timezone.utc).date().isoformat(),
+        }
+        with open(trade_file, "w") as f:
+            json.dump(data, f, indent=2)
+        logger.info(f"Open trade saved: {symbol}")
+
+    def on_trade_close(
+        self,
+        symbol: str,
+        exit_price: float,
+        exit_reason: str = "unknown",
+        hold_minutes: int = 0,
+    ):
+        """
+        Called when a position closes. Triggers post-mortem for losses
+        and reinforcement logging for wins.
+        """
+        trade_file = OPEN_TRADES_DIR / f"{symbol.upper()}.json"
+        if not trade_file.exists():
+            logger.warning(f"on_trade_close: no open trade file for {symbol}")
+            return
+
+        with open(trade_file) as f:
+            open_trade = json.load(f)
+
+        side = open_trade.get("side", "buy")
+        entry_price = open_trade.get("entry_price", 0)
+        qty = open_trade.get("qty", 0)
+        analysis_at_entry = open_trade.get("analysis_at_entry", "")
+        date = open_trade.get("date", datetime.now(timezone.utc).date().isoformat())
+
+        if side == "buy":
+            pnl_pct = (exit_price - entry_price) / entry_price if entry_price else 0
+        else:
+            pnl_pct = (entry_price - exit_price) / entry_price if entry_price else 0
+
+        trade = {
+            "ticker": symbol.upper(),
+            "side": side,
+            "entry": entry_price,
+            "exit": exit_price,
+            "pnl_pct": round(pnl_pct, 4),
+            "hold_minutes": hold_minutes,
+            "exit_reason": exit_reason,
+            "analysis_at_entry": analysis_at_entry,
+            "date": date,
+        }
+
+        if pnl_pct < 0:
+            # Loss — full post-mortem
+            logger.info(f"Loss on {symbol} ({pnl_pct:+.1%}): running post-mortem")
+            try:
+                lesson = self.post_mortem.analyze(trade)
+                self.post_mortem.save_lesson(lesson)
+                pattern = lesson.get("pattern")
+                if pattern and pattern != "unknown":
+                    self.pattern_tracker.record_pattern(pattern, trade)
+                logger.info(f"Post-mortem complete: {lesson['lesson']}")
+            except Exception as e:
+                logger.error(f"Post-mortem failed for {symbol}: {e}")
+        else:
+            # Win — log for reinforcement
+            logger.info(f"Win on {symbol} ({pnl_pct:+.1%}): recording reinforcement")
+            reinforcement_path = OPEN_TRADES_DIR.parent / "reinforcements.jsonl"
+            with open(reinforcement_path, "a") as f:
+                f.write(json.dumps({
+                    "ticker": symbol.upper(),
+                    "pnl_pct": round(pnl_pct, 4),
+                    "exit_reason": exit_reason,
+                    "date": date,
+                    "analysis_snippet": analysis_at_entry[:300],
+                    "recorded_at": datetime.now(timezone.utc).isoformat(),
+                }) + "\n")
+
+        # Clean up open trade file
+        trade_file.unlink(missing_ok=True)
 
     def _log(self, decision: dict, order: Optional[dict], dry_run: bool, skip_reason: str = None):
         LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
