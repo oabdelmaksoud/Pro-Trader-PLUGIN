@@ -540,7 +540,8 @@
 <header>
   <div class="logo">Cooper<span>Corp</span> <span style="color:var(--text-dim);font-size:13px;font-weight:400">PRJ-002</span></div>
   <div class="header-meta">
-    <div class="live-dot">LIVE</div>
+    <div class="live-dot">SSE</div>
+    <span id="stream-status" style="font-size:10px;color:var(--muted)">○ STREAM</span>
     <span id="clock">--:-- ET</span>
     <button class="refresh-btn" onclick="loadAll()">↻ Refresh</button>
   </div>
@@ -713,8 +714,173 @@
 
 <script>
 // ── CONFIG ──
-const REPO = '/Users/omarabdelmaksoud/.openclaw/workspace/prj-002/coopercorp-trading';
 const ET_TZ = 'America/New_York';
+
+// ── SSE CONNECTION ────────────────────────────────────────────────────────────
+let _sse = null;
+let _sseRetries = 0;
+let _sseLiveIndicator = false;
+
+function connectSSE() {
+  if (_sse) { _sse.close(); _sse = null; }
+  _sse = new EventSource('/stream');
+
+  _sse.onopen = () => {
+    _sseRetries = 0;
+    _sseLiveIndicator = true;
+    document.querySelector('.live-dot').style.color = 'var(--green)';
+    console.log('[SSE] connected');
+  };
+
+  _sse.onerror = () => {
+    _sseLiveIndicator = false;
+    document.querySelector('.live-dot').style.color = 'var(--muted)';
+    _sse.close(); _sse = null;
+    // Exponential backoff: 1s, 2s, 4s… max 30s
+    const delay = Math.min(1000 * Math.pow(2, _sseRetries++), 30000);
+    console.log(`[SSE] reconnecting in ${delay}ms`);
+    setTimeout(connectSSE, delay);
+  };
+
+  // ── Initial snapshot ──
+  _sse.addEventListener('init', e => {
+    const d = JSON.parse(e.data);
+    applyAccountState(d);
+    applyMarketState(d);
+  });
+
+  // ── Tick: position P&L updates (1s when stream live) ──
+  _sse.addEventListener('positions', e => {
+    const d = JSON.parse(e.data);
+    renderPositions(d.positions || []);
+    applyPnlBar(d);
+    // Flash the P&L value
+    const el = document.getElementById('today-pnl');
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 300);
+  });
+
+  // ── Account refresh (every ~30s) ──
+  _sse.addEventListener('account', e => {
+    const d = JSON.parse(e.data);
+    applyAccountState(d);
+  });
+
+  // ── Market context (every ~30s) ──
+  _sse.addEventListener('market', e => {
+    const d = JSON.parse(e.data);
+    applyMarketState(d);
+  });
+
+  // ── New signal ──
+  _sse.addEventListener('signal', e => {
+    const sig = JSON.parse(e.data);
+    prependSignal(sig);
+  });
+
+  // ── Heartbeat ──
+  _sse.addEventListener('heartbeat', e => {
+    const d = JSON.parse(e.data);
+    const streamDot = document.getElementById('stream-status');
+    if (streamDot) streamDot.textContent = d.stream ? '⬤ STREAM' : '○ STREAM';
+    if (streamDot) streamDot.style.color = d.stream ? 'var(--green)' : 'var(--muted)';
+  });
+
+  // ── Alert ──
+  _sse.addEventListener('alert', e => {
+    const d = JSON.parse(e.data);
+    showAlert(d.message, d.level || 'info');
+  });
+}
+
+// ── FLASH ANIMATION ──────────────────────────────────────────────────────────
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes flash { 0%{opacity:1} 30%{opacity:0.3} 100%{opacity:1} }
+  .flash { animation: flash 0.3s ease; }
+  .alert-toast {
+    position: fixed; bottom: 20px; right: 20px; z-index: 999;
+    background: var(--surface2); border: 1px solid var(--border);
+    padding: 12px 16px; border-radius: 4px; font-size: 12px;
+    max-width: 320px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    animation: fadeIn 0.3s ease;
+  }
+  .alert-toast.warn { border-color: var(--yellow); }
+  .alert-toast.error { border-color: var(--red); }
+  .alert-toast.buy { border-color: var(--green); }
+`;
+document.head.appendChild(style);
+
+function showAlert(msg, level='info') {
+  const toast = document.createElement('div');
+  toast.className = `alert-toast ${level}`;
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 5000);
+}
+
+// ── APPLY STATE HELPERS ───────────────────────────────────────────────────────
+function applyAccountState(d) {
+  if (d.portfolio_value != null) {
+    document.getElementById('portfolio-val').textContent = '$' + parseFloat(d.portfolio_value).toLocaleString('en-US', {maximumFractionDigits:2});
+  }
+  if (d.buying_power != null) {
+    document.getElementById('bp-val').textContent = '$' + parseFloat(d.buying_power).toLocaleString('en-US', {maximumFractionDigits:2});
+  }
+  if (d.status) document.getElementById('portfolio-sub').textContent = d.status;
+  if (d.positions != null) renderPositions(d.positions);
+  applyPnlBar(d);
+  if (d.heat != null) {
+    document.getElementById('heat-fill').style.width = Math.min(d.heat / 12 * 100, 100) + '%';
+    document.getElementById('heat-summary').textContent = `${parseFloat(d.heat).toFixed(1)}% at risk`;
+  }
+}
+
+function applyPnlBar(d) {
+  if (d.today_pnl != null) {
+    const pnl = parseFloat(d.today_pnl);
+    const pnlEl = document.getElementById('today-pnl');
+    pnlEl.textContent = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toLocaleString('en-US', {maximumFractionDigits:2});
+    pnlEl.className = 'stat-value ' + (pnl >= 0 ? 'green' : 'red');
+    if (d.portfolio_value) {
+      const pct = pnl / parseFloat(d.portfolio_value) * 100;
+      document.getElementById('today-pnl-pct').textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+    }
+  }
+}
+
+function applyMarketState(d) {
+  updateMarket(d);
+}
+
+// ── SIGNAL FEED: live prepend ─────────────────────────────────────────────────
+const _liveFeed = [];
+
+function prependSignal(sig) {
+  const ts = sig.ts || sig.timestamp || '';
+  const timePart = ts ? new Date(ts).toLocaleTimeString('en-US', {timeZone: ET_TZ, hour:'2-digit', minute:'2-digit', hour12:false}) : '--:--';
+  const action = (sig.action || 'info').toLowerCase();
+  const type = action === 'buy' ? 'buy' : action === 'sell' ? 'sell' : 'info';
+  const score = sig.score;
+  _liveFeed.unshift({ time: timePart, type, title: `${sig.ticker || ''} ${sig.action || ''}`.trim(), sub: sig.analysis || sig.skip_reason || '', score });
+  const feed = document.getElementById('signal-feed');
+  const item = document.createElement('div');
+  item.className = 'signal-item';
+  item.style.borderTop = '1px solid rgba(0,255,136,0.2)';
+  item.innerHTML = `
+    <div class="signal-time">${timePart}</div>
+    <div class="signal-dot ${type}"></div>
+    <div class="signal-body">
+      <div class="signal-title">${sig.ticker || ''} ${sig.action || ''}</div>
+      <div class="signal-sub">${sig.analysis || sig.skip_reason || ''}</div>
+    </div>
+    ${score ? `<div class="signal-score ${score>=7.5?'high':score>=6.5?'mid':'low'}">${score}</div>` : ''}
+  `;
+  feed.insertBefore(item, feed.firstChild);
+  setTimeout(() => item.style.borderTop = '', 2000);
+  // Keep feed to 50 items
+  while (feed.children.length > 50) feed.removeChild(feed.lastChild);
+}
 
 // ── CLOCK ──
 function updateClock() {
@@ -1007,10 +1173,27 @@ async function loadAll() {
   loadChart();
 }
 
-// ── AUTO REFRESH ──
+// ── INIT ──────────────────────────────────────────────────────────────────────
+// Market status + static renders
+const ms = getMarketStatus();
+const msEl = document.getElementById('mkt-status');
+msEl.textContent = ms.status;
+msEl.style.color = ms.color;
+document.getElementById('mkt-sub').textContent = ms.label;
+renderSignals();
+renderScanWindows();
+loadChart();
+
+// Try SSE first; REST as warmup + fallback
+connectSSE();
+
+// Warmup REST call immediately (populates before SSE init arrives)
 loadAll();
-setInterval(() => { renderScanWindows(); }, 30000);
-setInterval(() => { loadAll(); }, 60000);
+
+// Slow fallback poll (only matters if SSE drops and reconnects slowly)
+setInterval(loadAll, 60000);
+// Scan window clock — purely client-side, keep at 30s
+setInterval(renderScanWindows, 30000);
 </script>
 </body>
 </html>
