@@ -1,12 +1,30 @@
 #!/usr/bin/env python3
 """CooperCorp PRJ-002 — Alpaca Account Status"""
-import os
+import os, subprocess
 from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 from tradingagents.brokers.alpaca import AlpacaBroker
+
+ACCOUNT_FLOOR = 90_000.0  # Alert if portfolio drops below this
+
+
+def check_floor_alert(broker):
+    value = broker.get_portfolio_value()
+    if value < ACCOUNT_FLOOR:
+        msg = f"⚠️ ACCOUNT ALERT: Portfolio at ${value:,.2f} — below floor ${ACCOUNT_FLOOR:,.2f}. Review immediately."
+        subprocess.run([
+            "openclaw", "message", "send",
+            "--channel", "discord",
+            "--target", "1468597633756037385",
+            "--message", msg
+        ])
+        print(f"ALERT SENT: {msg}")
+    else:
+        print(f"Account OK: ${value:,.2f} (floor: ${ACCOUNT_FLOOR:,.2f})")
+
 
 broker = AlpacaBroker()
 s = broker.status_summary()
@@ -36,3 +54,6 @@ if orders:
 else:
     print("\n📋 No open orders")
 print()
+
+# Floor alert check
+check_floor_alert(broker)
