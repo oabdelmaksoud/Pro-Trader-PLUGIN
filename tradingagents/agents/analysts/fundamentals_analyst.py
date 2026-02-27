@@ -2,6 +2,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 import time
 import json
 from tradingagents.agents.utils.agent_utils import get_fundamentals, get_balance_sheet, get_cashflow, get_income_statement, get_insider_transactions
+from tradingagents.agents.utils.social_data_tools import get_finnhub_profile, get_finnhub_insiders
 from tradingagents.dataflows.config import get_config
 
 
@@ -17,6 +18,8 @@ def create_fundamentals_analyst(llm):
             get_cashflow,
             get_income_statement,
             get_insider_transactions,
+            get_finnhub_profile,    # Finnhub: P/E, beta, revenue growth, 52w range
+            get_finnhub_insiders,   # Finnhub: SEC insider buy/sell transactions
         ]
 
         system_message = (

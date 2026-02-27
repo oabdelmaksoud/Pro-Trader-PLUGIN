@@ -55,3 +55,49 @@ def get_finnhub_news(
     if not is_available():
         return "Finnhub not configured. Set FINNHUB_API_KEY in .env"
     return get_company_news(ticker, days_back)
+
+
+@tool
+def get_finnhub_profile(
+    ticker: Annotated[str, "Stock ticker symbol (e.g. NVDA)"],
+) -> str:
+    """Get company profile and key financial metrics from Finnhub (P/E, EPS, beta, 52w range, revenue growth)."""
+    from tradingagents.dataflows.finnhub_data import get_company_profile, is_available
+    if not is_available():
+        return f"Finnhub not configured. Set FINNHUB_API_KEY in .env"
+    return get_company_profile(ticker)
+
+
+@tool
+def get_finnhub_insiders(
+    ticker: Annotated[str, "Stock ticker symbol (e.g. NVDA)"],
+    days_back: Annotated[int, "Days to look back (default 30)"] = 30,
+) -> str:
+    """Get SEC insider transactions from Finnhub — who is buying or selling internally."""
+    from tradingagents.dataflows.finnhub_data import get_insider_transactions, is_available
+    if not is_available():
+        return f"Finnhub not configured. Set FINNHUB_API_KEY in .env"
+    return get_insider_transactions(ticker, days_back)
+
+
+@tool
+def get_finnhub_quote(
+    ticker: Annotated[str, "Stock ticker symbol (e.g. NVDA)"],
+) -> str:
+    """Get real-time quote from Finnhub (price, change%, day range)."""
+    from tradingagents.dataflows.finnhub_data import get_quote, is_available
+    if not is_available():
+        return f"Finnhub not configured. Set FINNHUB_API_KEY in .env"
+    data = get_quote(ticker)
+    if "error" in data:
+        return f"Quote error: {data['error']}"
+    return f"{ticker.upper()} @ ${data['price']:.2f} | Change: {data['change_pct']:+.2f}% | H: ${data['high']:.2f} L: ${data['low']:.2f} | Prev close: ${data['prev_close']:.2f}"
+
+
+@tool
+def get_finnhub_market_news() -> str:
+    """Get current general market news from Finnhub (Bloomberg, Reuters, CNBC sources)."""
+    from tradingagents.dataflows.finnhub_data import get_market_news, is_available
+    if not is_available():
+        return "Finnhub not configured. Set FINNHUB_API_KEY in .env"
+    return get_market_news()

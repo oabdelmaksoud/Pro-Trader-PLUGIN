@@ -2,7 +2,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 import time
 import json
 from tradingagents.agents.utils.agent_utils import get_news, get_global_news
-from tradingagents.agents.utils.social_data_tools import get_finnhub_news
+from tradingagents.agents.utils.social_data_tools import get_finnhub_news, get_finnhub_market_news, get_finnhub_quote
 from tradingagents.dataflows.config import get_config
 
 
