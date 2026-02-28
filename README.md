@@ -1,219 +1,338 @@
-<p align="center">
-  <img src="assets/TauricResearch.png" style="width: 60%; height: auto;">
-</p>
-
-<div align="center" style="line-height: 1;">
-  <a href="https://arxiv.org/abs/2412.20138" target="_blank"><img alt="arXiv" src="https://img.shields.io/badge/arXiv-2412.20138-B31B1B?logo=arxiv"/></a>
-  <a href="https://discord.com/invite/hk9PGKShPK" target="_blank"><img alt="Discord" src="https://img.shields.io/badge/Discord-TradingResearch-7289da?logo=discord&logoColor=white&color=7289da"/></a>
-  <a href="./assets/wechat.png" target="_blank"><img alt="WeChat" src="https://img.shields.io/badge/WeChat-TauricResearch-brightgreen?logo=wechat&logoColor=white"/></a>
-  <a href="https://x.com/TauricResearch" target="_blank"><img alt="X Follow" src="https://img.shields.io/badge/X-TauricResearch-white?logo=x&logoColor=white"/></a>
-  <br>
-  <a href="https://github.com/TauricResearch/" target="_blank"><img alt="Community" src="https://img.shields.io/badge/Join_GitHub_Community-TauricResearch-14C290?logo=discourse"/></a>
-</div>
-
 <div align="center">
-  <!-- Keep these links. Translations will automatically update with the README. -->
-  <a href="https://www.readme-i18n.com/TauricResearch/TradingAgents?lang=de">Deutsch</a> | 
-  <a href="https://www.readme-i18n.com/TauricResearch/TradingAgents?lang=es">Español</a> | 
-  <a href="https://www.readme-i18n.com/TauricResearch/TradingAgents?lang=fr">français</a> | 
-  <a href="https://www.readme-i18n.com/TauricResearch/TradingAgents?lang=ja">日本語</a> | 
-  <a href="https://www.readme-i18n.com/TauricResearch/TradingAgents?lang=ko">한국어</a> | 
-  <a href="https://www.readme-i18n.com/TauricResearch/TradingAgents?lang=pt">Português</a> | 
-  <a href="https://www.readme-i18n.com/TauricResearch/TradingAgents?lang=ru">Русский</a> | 
-  <a href="https://www.readme-i18n.com/TauricResearch/TradingAgents?lang=zh">中文</a>
+
+# 🦅 CooperCorp Trading System
+
+### Autonomous Multi-Agent Paper Trading · Powered by OpenClaw + Alpaca
+
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://python.org)
+[![Alpaca](https://img.shields.io/badge/Broker-Alpaca_Paper-FFCD00?logo=alpaca&logoColor=black)](https://alpaca.markets)
+[![Tests](https://img.shields.io/badge/Tests-8%2F8_passing-brightgreen?logo=pytest)](tests/)
+[![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
+[![Forked from](https://img.shields.io/badge/Forked_from-TauricResearch%2FTradingAgents-orange?logo=github)](https://github.com/TauricResearch/TradingAgents)
+
+**$100,499 → $1,000,000 · Paper trading · 24/7 autonomous · Multi-agent LLM pipeline**
+
 </div>
 
 ---
 
-# TradingAgents: Multi-Agents LLM Financial Trading Framework
+## What Is This?
 
-## News
-- [2026-02] **TradingAgents v0.2.0** released with multi-provider LLM support (GPT-5.x, Gemini 3.x, Claude 4.x, Grok 4.x) and improved system architecture.
-- [2026-01] **Trading-R1** [Technical Report](https://arxiv.org/abs/2509.11420) released, with [Terminal](https://github.com/TauricResearch/Trading-R1) expected to land soon.
+CooperCorp is a **fully autonomous paper trading system** built on top of [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents). It runs 5 intraday scans per day using a debate-style multi-agent LLM pipeline, executes trades via Alpaca's paper API, monitors positions 24/7, and posts every signal and trade to Discord in real time.
 
-<div align="center">
-<a href="https://www.star-history.com/#TauricResearch/TradingAgents&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=TauricResearch/TradingAgents&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=TauricResearch/TradingAgents&type=Date" />
-   <img alt="TradingAgents Star History" src="https://api.star-history.com/svg?repos=TauricResearch/TradingAgents&type=Date" style="width: 80%; height: auto;" />
- </picture>
-</a>
-</div>
+> **Status:** Live and running. NVDA put opened and closed +18.8% on Week 1.
 
-> 🎉 **TradingAgents** officially released! We have received numerous inquiries about the work, and we would like to express our thanks for the enthusiasm in our community.
->
-> So we decided to fully open-source the framework. Looking forward to building impactful projects with you!
+---
 
-<div align="center">
+## Architecture
 
-🚀 [TradingAgents](#tradingagents-framework) | ⚡ [Installation & CLI](#installation-and-cli) | 🎬 [Demo](https://www.youtube.com/watch?v=90gr5lwjIho) | 📦 [Package Usage](#tradingagents-package) | 🤝 [Contributing](#contributing) | 📄 [Citation](#citation)
-
-</div>
-
-## TradingAgents Framework
-
-TradingAgents is a multi-agent trading framework that mirrors the dynamics of real-world trading firms. By deploying specialized LLM-powered agents: from fundamental analysts, sentiment experts, and technical analysts, to trader, risk management team, the platform collaboratively evaluates market conditions and informs trading decisions. Moreover, these agents engage in dynamic discussions to pinpoint the optimal strategy.
-
-<p align="center">
-  <img src="assets/schema.png" style="width: 100%; height: auto;">
-</p>
-
-> TradingAgents framework is designed for research purposes. Trading performance may vary based on many factors, including the chosen backbone language models, model temperature, trading periods, the quality of data, and other non-deterministic factors. [It is not intended as financial, investment, or trading advice.](https://tauric.ai/disclaimer/)
-
-Our framework decomposes complex trading tasks into specialized roles. This ensures the system achieves a robust, scalable approach to market analysis and decision-making.
-
-### Analyst Team
-- Fundamentals Analyst: Evaluates company financials and performance metrics, identifying intrinsic values and potential red flags.
-- Sentiment Analyst: Analyzes social media and public sentiment using sentiment scoring algorithms to gauge short-term market mood.
-- News Analyst: Monitors global news and macroeconomic indicators, interpreting the impact of events on market conditions.
-- Technical Analyst: Utilizes technical indicators (like MACD and RSI) to detect trading patterns and forecast price movements.
-
-<p align="center">
-  <img src="assets/analyst.png" width="100%" style="display: inline-block; margin: 0 2%;">
-</p>
-
-### Researcher Team
-- Comprises both bullish and bearish researchers who critically assess the insights provided by the Analyst Team. Through structured debates, they balance potential gains against inherent risks.
-
-<p align="center">
-  <img src="assets/researcher.png" width="70%" style="display: inline-block; margin: 0 2%;">
-</p>
-
-### Trader Agent
-- Composes reports from the analysts and researchers to make informed trading decisions. It determines the timing and magnitude of trades based on comprehensive market insights.
-
-<p align="center">
-  <img src="assets/trader.png" width="70%" style="display: inline-block; margin: 0 2%;">
-</p>
-
-### Risk Management and Portfolio Manager
-- Continuously evaluates portfolio risk by assessing market volatility, liquidity, and other risk factors. The risk management team evaluates and adjusts trading strategies, providing assessment reports to the Portfolio Manager for final decision.
-- The Portfolio Manager approves/rejects the transaction proposal. If approved, the order will be sent to the simulated exchange and executed.
-
-<p align="center">
-  <img src="assets/risk.png" width="70%" style="display: inline-block; margin: 0 2%;">
-</p>
-
-## Installation and CLI
-
-### Installation
-
-Clone TradingAgents:
-```bash
-git clone https://github.com/TauricResearch/TradingAgents.git
-cd TradingAgents
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    COOPERCORP TRADING SYSTEM                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐   │
+│  │  Flash   │   │  Macro   │   │  Pulse   │   │ Cipher   │   │
+│  │ 📈 Tech  │   │ 🌍 Fund. │   │ 💬 Sent. │   │ 🔊 News  │   │
+│  └────┬─────┘   └────┬─────┘   └────┬─────┘   └──────────┘   │
+│       │              │              │                           │
+│       └──────────────┴──────────────┘                          │
+│                       │                                        │
+│              ┌─────────▼─────────┐                            │
+│              │   Bull 🐂 vs Bear 🐻  │  ← Debate / Score      │
+│              └─────────┬─────────┘                            │
+│                        │                                       │
+│              ┌─────────▼─────────┐                            │
+│              │  Risk 🛡️ Gate       │  ← 4 gates: market hours │
+│              │  (trade_gate.py)   │    circuit breaker         │
+│              └─────────┬─────────┘    position limit          │
+│                        │              portfolio heat           │
+│              ┌─────────▼─────────┐                            │
+│              │  Executor ⚡       │  ← Alpaca API              │
+│              │  Bracket orders   │    Stop -3% / TP +8%       │
+│              └─────────┬─────────┘    Trailing stop           │
+│                        │                                       │
+│  ┌─────────────────────▼──────────────────────────────────┐   │
+│  │              Discord · Dashboard · Logs                 │   │
+│  │  #war-room  #paper-trades  #winning  #losing  #options  │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-Create a virtual environment in any of your favorite environment managers:
-```bash
-conda create -n tradingagents python=3.13
-conda activate tradingagents
+---
+
+## Signal Pipeline
+
+```
+9:30 AM ──────────────────────────────────────────────── 2:30 PM
+   │         │           │           │           │
+   ▼         ▼           ▼           ▼           ▼
+SCAN 1    SCAN 2      SCAN 3      SCAN 4      SCAN 5
+9:30      10:30       12:00       1:00        2:30
+score≥7   score≥7    score≥7    score≥7    score≥7.5
+conv≥7    conv≥7     conv≥7     conv≥7     conv≥8
+                                           (last window)
+
+Each scan:
+┌─────────────────────────────────────────────────────┐
+│  get_market_data.py (real-time: Alpaca→Finnhub→CBOE) │
+│  13 Tier 1 tickers + dynamic Tier 3 movers           │
+│         │                                            │
+│  Pre-score filter (≥5.5) → top candidate             │
+│         │                                            │
+│  5 parallel sub-agents via sessions_spawn            │
+│  Flash · Macro · Pulse · Bull · Bear                 │
+│         │                                            │
+│  Weighted score: Catalyst 30% + Tech 25%             │
+│                  Sentiment 20% + Fund 15% + RR 10%   │
+│         │                                            │
+│  ≥7.0 score AND ≥7 conviction → trade_gate.py       │
+│         │                                            │
+│  Alpaca bracket order: entry / stop-3% / tp+8%      │
+└─────────────────────────────────────────────────────┘
 ```
 
-Install dependencies:
-```bash
-pip install -r requirements.txt
+---
+
+## Data Sources
+
+| Source | Data | Tier | Auth |
+|---|---|---|---|
+| **Alpaca IEX** | Real-time US equity quotes + portfolio | Live | API key |
+| **Alpaca Crypto** | Real-time BTC/ETH | Live | API key |
+| **CBOE CDN** | Options chains: full Greeks, IV, OI, volume | Real-time | None |
+| **Finnhub** | Company news, earnings calendar, quotes | Real-time | Free key |
+| **Yahoo Finance RSS** | Ticker-specific headlines | Real-time | None |
+| **PR Newswire RSS** | Official press releases | Real-time | None |
+| **MarketWatch RSS** | Market top stories | Real-time | None |
+| **Google News RSS** | Broad financial coverage | Real-time | None |
+| **NewsAPI** | 80,000+ news sources | ~Real-time | Free key |
+| **Polygon.io** | Market movers, reference data | 15-min delay | Free key |
+| **Alpha Vantage** | News sentiment scores | 25 req/day | Free key |
+| **Stocktwits** | Retail trader sentiment | Real-time | None |
+| **SEC EDGAR** | 8-K, Form 4 filings | Real-time | None |
+| **Earnings Whisper** | Whisper EPS estimates | Daily | None |
+
+**Real-time quote chain:** `Alpaca IEX → Finnhub → Polygon → Webull → yfinance`
+
+---
+
+## Risk Management
+
+```
+┌───────────────── RISK GATES (trade_gate.py) ──────────────────┐
+│                                                                 │
+│  Gate 1: Market hours (9:30–3:45 ET, Mon–Fri)                 │
+│  Gate 2: Circuit breaker (daily loss > -5% → halt)            │
+│  Gate 3: Earnings blackout (no entries <1 day to earnings)     │
+│  Gate 4a: Position limit (max 2 simultaneous positions)        │
+│  Gate 4b: Portfolio heat (max 12% total, 8% per sector)        │
+│  Gate 4c: Correlation filter (no 2 positions in same group)    │
+│  Gate 4d: Duplicate prevention (no re-entry same day)          │
+│                                                                 │
+│  Position sizing:  VIX < 20 → 1.0×  ·  VIX 20–30 → 0.7×     │
+│                    VIX > 30 → 0.4×                             │
+│                                                                 │
+│  Exit rules:       Stop loss:    -3% (bracket at broker)       │
+│                    Partial exit: +5% → close 50%               │
+│                    Take profit:  +8% (bracket at broker)       │
+│                    Trailing:     3% below HWM (activates +2%)  │
+│                    EOD:          Force close 3:45 PM            │
+│                    (except: options, swing tags)                │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Required APIs
+---
 
-TradingAgents supports multiple LLM providers. Set the API key for your chosen provider:
+## 24/7 Monitoring Crons
 
-```bash
-export OPENAI_API_KEY=...          # OpenAI (GPT)
-export GOOGLE_API_KEY=...          # Google (Gemini)
-export ANTHROPIC_API_KEY=...       # Anthropic (Claude)
-export XAI_API_KEY=...             # xAI (Grok)
-export OPENROUTER_API_KEY=...      # OpenRouter
-export ALPHA_VANTAGE_API_KEY=...   # Alpha Vantage
+```
+ Mon–Fri  ──────────────────────────────────────────────────────
+  4:00 AM  Pre-market extended scan
+  7:00 AM  Pre-market extended scan
+  8:00 AM  Macro calendar (Mon) / Morning brief
+  9:15 AM  Pre-market top 3 analysis
+  9:20 AM  Keep-awake + stream + dashboard START
+  9:25 AM  Circuit breaker reset + system ready
+  9:30 AM  ━━ SCAN 1 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 10:30 AM  ━━ SCAN 2 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 11:30 AM  Position monitor
+ 12:00 PM  ━━ SCAN 3 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  1:00 PM  ━━ SCAN 4 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  2:00 PM  Afternoon position review
+  2:30 PM  ━━ SCAN 5 (last window, score≥7.5) ━━━━━━━━━━━━━━━
+  3:45 PM  EOD force close
+  4:05 PM  Market close P&L update
+  4:20 PM  Stream + dashboard STOP
+
+ 24/7  ──────────────────────────────────────────────────────
+ */30       Breaking news monitor (ALL hours)
+ */30       Futures & crypto monitor → #futures-signals
+ 15,45      Gold / XAUUSD monitor → #gold-xauusd-signals
+ 11PM/2AM/5AM  Overnight macro check
+
+ Weekly  ─────────────────────────────────────────────────────
+ Sun 8PM   Sector rotation analysis
+ Mon 7:30  Learning review + score adjustments
+ Mon 8:00  Macro calendar (earnings + economic data)
 ```
 
-For local models, configure Ollama with `llm_provider: "ollama"` in your config.
+---
 
-Alternatively, copy `.env.example` to `.env` and fill in your keys:
+## Discord Integration
+
+| Channel | Purpose |
+|---|---|
+| `#war-room-hive-mind` | All alerts, scan results, system status |
+| `#paper-trades` | Every trade entry and exit |
+| `#winning-trades` | Closed winners |
+| `#losing-trades` | Closed losers + lessons |
+| `#options-trades` | Options signals (CBOE-sourced) |
+| `#cooper-study` | Weekly analysis + sector rotation |
+| `#trading-chat` | Morning brief |
+| `#futures-signals` | ES/NQ/BTC/ETH 24/7 |
+| `#gold-xauusd-signals` | Gold/Silver/DXY/TLT 24/7 |
+| `#gamespoofer-trades` | Personal position tracking |
+
+---
+
+## Dashboard
+
+Real-time SSE-powered SPA at `http://localhost:8002` — 5 pages:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Portfolio │ Signals │ Market Intel │ Watchlist │ Analytics  │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  $100,499 ──────────────────────────────── $1,000,000       │
+│  ████░░░░░░░░░░░░░░░░░░░░░░░░░░░░  10%                     │
+│                                                              │
+│  Live positions · Real-time P&L · Equity curve              │
+│  VIX · Fear & Greed · SPY/QQQ/SMH · BTC signal             │
+│  Signal feed · Options chain viewer · News feed              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+Start: `python3 dashboard/server.py --port 8002`
+
+---
+
+## Options Engine
+
+CBOE real-time options data (no API key, no login) → 9 strategies in 3 tabs:
+
+```
+Directional          Neutral              Income
+─────────────        ─────────────        ─────────────
+🥇 Best call/put     ⚡ Long straddle      💰 Cash-secured put
+🥈 Alt strike        🦅 Spread            📊 Covered call
+🎰 Swing OTM         🔧 Iron condor
+```
+
+---
+
+## Quickstart
+
 ```bash
+git clone https://github.com/oabdelmaksoud/coopercorp-trading.git
+cd coopercorp-trading
+
+# Install dependencies
+pip install -e . --break-system-packages
+
+# Configure API keys
 cp .env.example .env
+# Edit .env — add Alpaca keys (required) + Finnhub (recommended)
+
+# Verify setup
+python3 -m pytest tests/ -q
+
+# Start dashboard
+python3 dashboard/server.py --port 8002
+# Open http://localhost:8002
+
+# Run a single scan manually
+python3 scripts/get_market_data.py --tickers NVDA,MSFT,ARM --score --full
 ```
 
-### CLI Usage
+---
 
-You can also try out the CLI directly by running:
-```bash
-python -m cli.main
-```
-You will see a screen where you can select your desired tickers, date, LLMs, research depth, etc.
+## Environment Variables
 
-<p align="center">
-  <img src="assets/cli/cli_init.png" width="100%" style="display: inline-block; margin: 0 2%;">
-</p>
+| Variable | Required | Source |
+|---|---|---|
+| `ALPACA_API_KEY` | ✅ Yes | [alpaca.markets](https://alpaca.markets) |
+| `ALPACA_SECRET_KEY` | ✅ Yes | [alpaca.markets](https://alpaca.markets) |
+| `ALPACA_BASE_URL` | ✅ Yes | `https://paper-api.alpaca.markets` |
+| `FINNHUB_API_KEY` | Recommended | [finnhub.io](https://finnhub.io) (free) |
+| `POLYGON_API_KEY` | Optional | [polygon.io](https://polygon.io) (free) |
+| `NEWS_API_KEY` | Optional | [newsapi.org](https://newsapi.org) (free) |
+| `ALPHA_VANTAGE_KEY` | Optional | [alphavantage.co](https://alphavantage.co) (free) |
 
-An interface will appear showing results as they load, letting you track the agent's progress as it runs.
+CBOE options data requires no key. Most sources have free tiers.
 
-<p align="center">
-  <img src="assets/cli/cli_news.png" width="100%" style="display: inline-block; margin: 0 2%;">
-</p>
+---
 
-<p align="center">
-  <img src="assets/cli/cli_transaction.png" width="100%" style="display: inline-block; margin: 0 2%;">
-</p>
-
-## TradingAgents Package
-
-### Implementation Details
-
-We built TradingAgents with LangGraph to ensure flexibility and modularity. The framework supports multiple LLM providers: OpenAI, Google, Anthropic, xAI, OpenRouter, and Ollama.
-
-### Python Usage
-
-To use TradingAgents inside your code, you can import the `tradingagents` module and initialize a `TradingAgentsGraph()` object. The `.propagate()` function will return a decision. You can run `main.py`, here's also a quick example:
-
-```python
-from tradingagents.graph.trading_graph import TradingAgentsGraph
-from tradingagents.default_config import DEFAULT_CONFIG
-
-ta = TradingAgentsGraph(debug=True, config=DEFAULT_CONFIG.copy())
-
-# forward propagate
-_, decision = ta.propagate("NVDA", "2026-01-15")
-print(decision)
-```
-
-You can also adjust the default configuration to set your own choice of LLMs, debate rounds, etc.
-
-```python
-from tradingagents.graph.trading_graph import TradingAgentsGraph
-from tradingagents.default_config import DEFAULT_CONFIG
-
-config = DEFAULT_CONFIG.copy()
-config["llm_provider"] = "openai"        # openai, google, anthropic, xai, openrouter, ollama
-config["deep_think_llm"] = "gpt-5.2"     # Model for complex reasoning
-config["quick_think_llm"] = "gpt-5-mini" # Model for quick tasks
-config["max_debate_rounds"] = 2
-
-ta = TradingAgentsGraph(debug=True, config=config)
-_, decision = ta.propagate("NVDA", "2026-01-15")
-print(decision)
-```
-
-See `tradingagents/default_config.py` for all configuration options.
-
-## Contributing
-
-We welcome contributions from the community! Whether it's fixing a bug, improving documentation, or suggesting a new feature, your input helps make this project better. If you are interested in this line of research, please consider joining our open-source financial AI research community [Tauric Research](https://tauric.ai/).
-
-## Citation
-
-Please reference our work if you find *TradingAgents* provides you with some help :)
+## Project Structure
 
 ```
-@misc{xiao2025tradingagentsmultiagentsllmfinancial,
-      title={TradingAgents: Multi-Agents LLM Financial Trading Framework}, 
-      author={Yijia Xiao and Edward Sun and Di Luo and Wei Wang},
-      year={2025},
-      eprint={2412.20138},
-      archivePrefix={arXiv},
-      primaryClass={q-fin.TR},
-      url={https://arxiv.org/abs/2412.20138}, 
-}
+coopercorp-trading/
+├── scripts/
+│   ├── get_market_data.py      # Data layer (no LLM)
+│   ├── trade_gate.py           # Execution gateway (4 gates)
+│   ├── close_position.py       # Exit + learning wire-up
+│   ├── futures_monitor.py      # 24/7 ES/NQ/BTC/ETH
+│   ├── gold_monitor.py         # 24/7 Gold/Silver/DXY
+│   ├── wake_recovery.py        # Mac sleep/wake recovery
+│   └── stream_manager.py       # WebSocket start/stop
+├── tradingagents/
+│   ├── brokers/alpaca.py       # Broker API (paper + live)
+│   ├── dataflows/
+│   │   ├── cboe_options.py     # Real-time options (no key)
+│   │   ├── news_aggregator.py  # 6-source news pipeline
+│   │   ├── realtime_quotes.py  # Quote fallback chain
+│   │   └── alpaca_stream.py    # WebSocket price feed
+│   ├── risk/
+│   │   ├── circuit_breaker.py  # Daily loss halt
+│   │   ├── trailing_stop.py    # Dynamic stop management
+│   │   ├── portfolio_heat.py   # Sector + total heat
+│   │   └── trade_lock.py       # Duplicate prevention
+│   ├── discord_signal_card.py  # Standardized card format
+│   └── learning/
+│       ├── post_mortem.py      # Per-trade analysis
+│       ├── pattern_tracker.py  # Win/loss patterns
+│       └── score_adjuster.py   # Dynamic threshold tuning
+├── dashboard/
+│   ├── server.py               # SSE backend (port 8002)
+│   └── index.html              # 5-page SPA
+├── config/
+│   └── strategy.json           # Centralized config + watchlist
+└── logs/                       # signals.jsonl · ledger.jsonl
 ```
+
+---
+
+## Week 1 Results (Feb 27, 2026)
+
+| Trade | Type | Entry | Exit | P&L |
+|---|---|---|---|---|
+| `NVDA260313P00175000` | Put option | $4.43 | $3.60 | **+18.8% ✅** |
+
+5 scans ran. ARM scored 5.5–6.9 every scan but never triggered (F&G=13 Extreme Fear, VIX ~21). System is conservative by design — no forced trades.
+
+---
+
+## Forked From
+
+[TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) — Multi-Agents LLM Financial Trading Framework  
+Paper: [arXiv:2412.20138](https://arxiv.org/abs/2412.20138)
+
+CooperCorp extensions: live broker execution, 24/7 cron automation, real-time options (CBOE), multi-source news aggregation, SSE dashboard, OpenClaw agent integration.
+
+---
+
+<div align="center">
+<sub>CooperCorp Trading System · PRJ-002 · Paper trading only · Not financial advice</sub>
+</div>
