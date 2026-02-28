@@ -1,0 +1,273 @@
+#!/usr/bin/env python3
+"""
+CooperCorp PRJ-002 — Full Pipeline Scanner
+Implements ALL 5 upstream TradingAgents gaps:
+  Gap 1: Persistent BM25 memory (situation_memory.py)
+  Gap 2: Post-trade reflection (reflect_on_trade.py)
+  Gap 3: Research Manager synthesis
+  Gap 4: Multi-round Bull/Bear debate
+  Gap 5: Signal processing layer
+
+Flow:
+  get_market_data → Flash/Macro/Pulse (parallel) → Research Manager (+ BM25)
+  → Bull/Bear debate (N rounds) → Signal Processor → trade_gate
+
+Usage:
+  python3 scripts/full_pipeline_scan.py --ticker NVDA [--rounds 2] [--dry-run]
+"""
+import argparse
+import json
+import subprocess
+import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO))
+
+from dotenv import load_dotenv
+load_dotenv(REPO / ".env")
+
+
+def run_agent(agent_id: str, prompt: str, timeout: int = 90) -> str:
+    """Run an agent via openclaw oracle and return its output."""
+    result = subprocess.run(
+        ["openclaw", "oracle", "--model",
+         "opus" if agent_id in ("bull", "bear") else "sonnet",
+         "--print", prompt],
+        capture_output=True, text=True, timeout=timeout, cwd=str(REPO)
+    )
+    return result.stdout.strip() if result.returncode == 0 else f"[{agent_id} error: {result.stderr[:100]}]"
+
+
+def gather_market_data(ticker: str) -> dict:
+    """Step 1: Get raw market data and pre-score."""
+    result = subprocess.run(
+        [sys.executable, str(REPO / "scripts" / "get_market_data.py"),
+         "--tickers", ticker, "--score", "--full", "--json"],
+        capture_output=True, text=True, timeout=90, cwd=str(REPO)
+    )
+    try:
+        for line in reversed(result.stdout.splitlines()):
+            if line.strip().startswith("{"):
+                return json.loads(line.strip())
+    except Exception:
+        pass
+    return {"ticker": ticker, "score": 5.0, "raw": result.stdout[:1000]}
+
+
+def run_analyst_team(ticker: str, data: dict) -> dict:
+    """Step 2: Run Flash, Macro, Pulse in parallel."""
+    data_summary = json.dumps({k: v for k, v in data.items() if k != "raw"}, indent=2)[:1500]
+
+    prompts = {
+        "flash": f"""You are Flash 📈, CooperCorp Technical Analyst.
+Analyze {ticker} for intraday entry. Market data:
+{data_summary}
+Provide: price, entry zone, stop (-3%), target (+8%), R:R ratio, RSI status, SMA trend, volume vs average.
+End with: TECHNICAL SCORE: X/10""",
+
+        "macro": f"""You are Macro 🌍, CooperCorp Fundamentals Analyst.
+Analyze {ticker} fundamentals. Market data:
+{data_summary}
+Provide: main catalyst, days to earnings, sector trend, relative P/E, insider activity, key macro risks.
+End with: FUNDAMENTAL SCORE: X/10""",
+
+        "pulse": f"""You are Pulse 💬, CooperCorp Sentiment & Options Analyst.
+Analyze {ticker} sentiment. Market data:
+{data_summary}
+Provide: news tone, options PCR, unusual options activity, social momentum, fear/greed context.
+End with: SENTIMENT SCORE: X/10""",
+    }
+
+    reports = {}
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        futures = {ex.submit(run_agent, k, v): k for k, v in prompts.items()}
+        for f in as_completed(futures):
+            name = futures[f]
+            try:
+                reports[name] = f.result(timeout=100)
+            except Exception as e:
+                reports[name] = f"[{name} timeout: {e}]"
+
+    return reports
+
+
+def research_manager_synthesis(ticker: str, reports: dict, data: dict) -> str:
+    """Step 3 (Gap 3): Research Manager synthesizes analyst reports + BM25 memory."""
+    from tradingagents.agents.managers.research_synthesizer import synthesize_research
+    return synthesize_research(
+        ticker=ticker,
+        flash_report=reports.get("flash", ""),
+        macro_report=reports.get("macro", ""),
+        pulse_report=reports.get("pulse", ""),
+        score=float(data.get("score", 5.0)),
+        price=float(data.get("price", 0.0)),
+    )
+
+
+def run_debate(ticker: str, briefing: str, max_rounds: int = 2) -> tuple:
+    """Step 4 (Gap 4): Bull/Bear debate with configurable rounds."""
+    from tradingagents.graph.debate_engine import run_debate as _run_debate, format_debate_summary
+
+    bull_prompt = f"""You are Bull 🐂. The Research Manager has prepared this briefing for {ticker}:
+{briefing[:1500]}
+Make the strongest 3-bullet bullish case. What will drive the stock up?
+End with: BULL CONVICTION: X/10"""
+
+    bear_prompt = f"""You are Bear 🐻. The Research Manager has prepared this briefing for {ticker}:
+{briefing[:1500]}
+Make the strongest 3-bullet bearish/risk case. What could go wrong?
+End with: BEAR RISK: X/10"""
+
+    # Round 1: initial positions
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        bull_f = ex.submit(run_agent, "bull", bull_prompt, 90)
+        bear_f = ex.submit(run_agent, "bear", bear_prompt, 90)
+        bull_r1 = bull_f.result(timeout=100)
+        bear_r1 = bear_f.result(timeout=100)
+
+    # Additional rounds via debate_engine
+    bull_final, bear_final, conviction_delta = _run_debate(
+        ticker, briefing, bull_r1, bear_r1, max_rounds=max_rounds
+    )
+
+    summary = format_debate_summary(ticker, bull_final, bear_final, conviction_delta, max_rounds)
+    return bull_final, bear_final, conviction_delta, summary
+
+
+def process_signal(ticker: str, reports: dict, debate_summary: str,
+                   raw_score: float, conviction_delta: float) -> dict:
+    """Step 5 (Gap 5): Extract structured signal from all agent outputs."""
+    from tradingagents.graph.signal_processor import extract_signal, format_signal_card
+
+    all_text = "\n".join(reports.values()) + "\n" + debate_summary
+    signal = extract_signal(
+        ticker=ticker,
+        flash_report=reports.get("flash", ""),
+        macro_report=reports.get("macro", ""),
+        pulse_report=reports.get("pulse", ""),
+        debate_summary=debate_summary,
+        raw_score=raw_score,
+        conviction_delta=conviction_delta,
+    )
+    signal["card"] = format_signal_card(signal)
+    return signal
+
+
+def post_discord(channel_id: str, msg: str):
+    subprocess.run(
+        ["openclaw", "message", "send", "--channel", "discord",
+         "--target", channel_id, "--message", msg],
+        timeout=15, check=False
+    )
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Full pipeline scan with all 5 upstream gaps closed")
+    parser.add_argument("--ticker", required=True)
+    parser.add_argument("--rounds", type=int, default=2, help="Debate rounds (default: 2)")
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--threshold", type=float, default=7.0)
+    parser.add_argument("--conviction-min", type=int, default=7)
+    args = parser.parse_args()
+
+    ticker = args.ticker.upper()
+    print(f"\n{'='*60}")
+    print(f"🦅 CooperCorp Full Pipeline — {ticker}")
+    print(f"Debate rounds: {args.rounds} | Threshold: {args.threshold}")
+    print(f"{'='*60}\n")
+
+    # Step 1: Market data
+    print("📊 Step 1: Gathering market data...")
+    data = gather_market_data(ticker)
+    raw_score = float(data.get("score", 5.0))
+    print(f"   Pre-score: {raw_score:.1f} | Price: ${data.get('price', 0):.2f}")
+
+    if raw_score < 5.0:
+        print(f"   Pre-score {raw_score:.1f} too low — skipping pipeline")
+        return {"ticker": ticker, "action": "skip", "reason": "pre_score_too_low"}
+
+    # Step 2: Analyst team
+    print("\n👥 Step 2: Running analyst team (Flash + Macro + Pulse in parallel)...")
+    reports = run_analyst_team(ticker, data)
+    for name, r in reports.items():
+        score_line = next((l for l in r.splitlines() if "SCORE" in l.upper()), "")
+        print(f"   {name.upper()}: {score_line[:60] or r[:60]}")
+
+    # Step 3: Research Manager
+    print("\n📋 Step 3: Research Manager synthesis + BM25 memory injection...")
+    briefing = research_manager_synthesis(ticker, reports, data)
+    print(f"   Briefing: {len(briefing)} chars | Memory: {'included' if 'Relevant past' in briefing else 'no similar situations yet'}")
+
+    # Step 4: Bull/Bear debate
+    print(f"\n⚔️  Step 4: Bull/Bear debate ({args.rounds} rounds)...")
+    bull_final, bear_final, conviction_delta, debate_summary = run_debate(
+        ticker, briefing, max_rounds=args.rounds
+    )
+    print(f"   Conviction delta: {conviction_delta:+.1f} ({'bull' if conviction_delta > 0 else 'bear'} wins)")
+
+    # Step 5: Signal processing
+    print("\n🔬 Step 5: Signal processing...")
+    signal = process_signal(ticker, reports, debate_summary, raw_score, conviction_delta)
+    final_score = signal["score"]
+    direction = signal["direction"]
+    confidence = signal["confidence"]
+    print(f"   Direction: {direction} | Score: {final_score:.1f} | Confidence: {confidence}/10")
+    print(f"   {signal['card']}")
+
+    # Decision
+    threshold = args.threshold
+    meets_threshold = final_score >= threshold and confidence >= args.conviction_min
+
+    print(f"\n{'✅' if meets_threshold else '❌'} Decision: {direction} | Score {final_score:.1f} vs threshold {threshold}")
+
+    # Post summary to war-room
+    from datetime import datetime
+    import pytz
+    ET = pytz.timezone("America/New_York")
+    now = datetime.now(ET).strftime("%I:%M %p ET")
+
+    summary_msg = f"""🦅 **Full Pipeline Analysis — {ticker}** | {now}
+📊 Score: {final_score:.1f}/10 | Direction: {direction} | Confidence: {confidence}/10
+⚔️ Debate ({args.rounds} rounds): {'🐂 Bull +' if conviction_delta > 0 else '🐻 Bear +'}{abs(conviction_delta):.1f}
+{signal['card']}
+{'✅ **THRESHOLD MET** — Passing to trade gate' if meets_threshold else '⏭️ Below threshold — no trade'}
+— Cooper 🦅 | Full Pipeline"""
+
+    post_discord("1469763123010342953", summary_msg)
+
+    # Execute if threshold met
+    if meets_threshold and not args.dry_run and direction in ("BUY",):
+        print("\n🔴 Executing trade via trade_gate.py...")
+        gate_result = subprocess.run(
+            [sys.executable, str(REPO / "scripts" / "trade_gate.py"),
+             "--ticker", ticker,
+             "--action", "BUY",
+             "--score", str(round(final_score, 2)),
+             "--conviction", str(confidence),
+             "--source", "full_pipeline",
+             "--note", f"debate_delta={conviction_delta:+.1f}"],
+            capture_output=True, text=True, timeout=120, cwd=str(REPO)
+        )
+        print(gate_result.stdout[-500:])
+        if gate_result.stderr:
+            print("ERR:", gate_result.stderr[-200:])
+
+    result = {
+        "ticker": ticker,
+        "pre_score": raw_score,
+        "final_score": final_score,
+        "direction": direction,
+        "confidence": confidence,
+        "conviction_delta": conviction_delta,
+        "debate_rounds": args.rounds,
+        "threshold_met": meets_threshold,
+        "action": "trade" if meets_threshold and not args.dry_run else "skip",
+    }
+    print(f"\n{json.dumps(result, indent=2)}")
+    return result
+
+
+if __name__ == "__main__":
+    main()

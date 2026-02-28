@@ -220,6 +220,9 @@ def main():
             _sid_path = Path(__file__).parent.parent / "logs" / "open_trades"
             _sid_path.mkdir(parents=True, exist_ok=True)
             (_sid_path / f"{args.ticker}.signal_id").write_text(str(db_signal_id))
+            # Write score/conviction for reflection engine
+            (_sid_path / f"{args.ticker}.score").write_text(str(final_score))
+            (_sid_path / f"{args.ticker}.conviction").write_text(str(args.conviction))
         except Exception as _e:
             print(f"WARN: signal_db log error: {_e}")
 

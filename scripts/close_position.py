@@ -187,25 +187,47 @@ def main():
     except Exception as e:
         print(f"Warning: trailing stop clear failed: {e}")
 
-    # Wire TradingAgents reflection system
+    # ── BM25 Memory + LLM Reflection (Gap 1 & 2 closure) ───────────────────
     try:
-        from tradingagents.graph.trading_graph import TradingAgentsGraph
-        from tradingagents.default_config import DEFAULT_CONFIG
+        import subprocess as _sp
+        _direction = "long" if qty > 0 else "short"
+        _score_file = REPO / "logs" / "open_trades" / f"{args.ticker}.score"
+        _score = float(_score_file.read_text().strip()) if _score_file.exists() else 0.0
+        _conviction_file = REPO / "logs" / "open_trades" / f"{args.ticker}.conviction"
+        _conviction = int(_conviction_file.read_text().strip()) if _conviction_file.exists() else 0
 
-        COOPER_CONFIG = {
-            "llm_provider": "anthropic",
-            "deep_think_llm": "claude-opus-4-6",
-            "quick_think_llm": "claude-sonnet-4-6",
-        }
-        merged = {**DEFAULT_CONFIG, **COOPER_CONFIG}
-        graph = TradingAgentsGraph(config=merged)
+        _ctx_parts = []
+        try:
+            import yfinance as yf
+            _vix = yf.Ticker("^VIX").fast_info.last_price
+            _ctx_parts.append(f"VIX={_vix:.1f}")
+            _btc = yf.Ticker("BTC-USD").fast_info.last_price
+            _ctx_parts.append(f"BTC={_btc:,.0f}")
+        except Exception:
+            pass
+        _market_context = ", ".join(_ctx_parts) if _ctx_parts else "context unavailable"
 
-        # reflect_and_remember takes returns_losses string
-        outcome = f"{args.ticker}: {'+' if pnl_dollar >= 0 else ''}{pnl_dollar:.2f} ({pnl_pct:.1f}%) — {args.reason}"
-        graph.reflect_and_remember(outcome)
-        print(f"Reflection recorded for agent memory: {outcome}")
+        _reflect_cmd = [
+            "python3", str(REPO / "scripts" / "reflect_on_trade.py"),
+            "--ticker", args.ticker,
+            "--entry", str(entry_price),
+            "--exit", str(exit_price),
+            "--pnl-pct", str(round(pnl_pct, 2)),
+            "--direction", _direction,
+            "--exit-reason", args.reason.lower(),
+            "--score", str(_score),
+            "--conviction", str(_conviction),
+            "--market-context", _market_context,
+        ]
+        _sp.Popen(_reflect_cmd, cwd=str(REPO))
+        print(f"Reflection spawned for {args.ticker} (async)")
+
+        for _suf in [".score", ".conviction"]:
+            _f = REPO / "logs" / "open_trades" / f"{args.ticker}{_suf}"
+            if _f.exists():
+                _f.unlink()
     except Exception as e:
-        print(f"WARN: Reflection failed (non-fatal): {e}")
+        print(f"WARN: Reflection spawn failed (non-fatal): {e}")
 
 
 if __name__ == "__main__":
