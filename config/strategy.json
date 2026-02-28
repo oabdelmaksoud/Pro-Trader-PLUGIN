@@ -2,15 +2,21 @@
   "_comment": "CooperCorp PRJ-002 Strategy Configuration",
   "scoring": {
     "weights": {
-      "catalyst": 0.30,
+      "catalyst": 0.3,
       "technical": 0.25,
-      "sentiment": 0.20,
+      "sentiment": 0.2,
       "fundamental": 0.15,
-      "risk_reward": 0.10
+      "risk_reward": 0.1
     },
     "thresholds": {
-      "default": {"score": 7.0, "conviction": 7},
-      "last_window": {"score": 7.5, "conviction": 8},
+      "default": {
+        "score": 7.0,
+        "conviction": 7
+      },
+      "last_window": {
+        "score": 7.5,
+        "conviction": 8
+      },
       "tier3_bonus": 0.5
     }
   },
@@ -19,7 +25,7 @@
     "default_pct": 0.05,
     "stop_pct": 0.03,
     "target_pct": 0.08,
-    "partial_exit_pct": 0.50,
+    "partial_exit_pct": 0.5,
     "partial_exit_trigger": 0.05,
     "conviction_scaling": {
       "7": 0.03,
@@ -32,15 +38,54 @@
     "max_daily_loss_pct": 0.05,
     "account_floor": 90000,
     "vix_thresholds": {
-      "low": {"vix_max": 20, "size_multiplier": 1.0},
-      "medium": {"vix_max": 30, "size_multiplier": 0.7},
-      "high": {"vix_max": 999, "size_multiplier": 0.4}
+      "low": {
+        "vix_max": 20,
+        "size_multiplier": 1.0
+      },
+      "medium": {
+        "vix_max": 30,
+        "size_multiplier": 0.7
+      },
+      "high": {
+        "vix_max": 999,
+        "size_multiplier": 0.4
+      }
     },
     "correlation_sectors": {
-      "semis": ["NVDA", "AMD", "INTC", "QCOM", "AVGO", "MRVL", "ON", "AMAT", "LRCX", "KLAC", "SMCI", "ARM"],
-      "mega_tech": ["MSFT", "AAPL", "GOOGL", "META", "AMZN"],
-      "fintech": ["COIN", "HOOD", "SQ", "PYPL"],
-      "biotech": ["MRNA", "BIIB", "REGN", "VRTX", "LLY"]
+      "semis": [
+        "NVDA",
+        "AMD",
+        "INTC",
+        "QCOM",
+        "AVGO",
+        "MRVL",
+        "ON",
+        "AMAT",
+        "LRCX",
+        "KLAC",
+        "SMCI",
+        "ARM"
+      ],
+      "mega_tech": [
+        "MSFT",
+        "AAPL",
+        "GOOGL",
+        "META",
+        "AMZN"
+      ],
+      "fintech": [
+        "COIN",
+        "HOOD",
+        "SQ",
+        "PYPL"
+      ],
+      "biotech": [
+        "MRNA",
+        "BIIB",
+        "REGN",
+        "VRTX",
+        "LLY"
+      ]
     }
   },
   "trailing_stop": {
@@ -49,6 +94,123 @@
   },
   "eod": {
     "force_close_time": "15:45",
-    "exempt_tags": ["swing", "options"]
+    "exempt_tags": [
+      "swing",
+      "options"
+    ]
+  },
+  "goal": {
+    "target_value": 1000000,
+    "starting_value": 100499,
+    "multiplier": 9.95,
+    "note": "Reach $1,000,000 from $100,499 paper trading account"
+  },
+  "watchlist": {
+    "tier1": [
+      "NVDA",
+      "MSFT",
+      "AAPL",
+      "GOOGL",
+      "META",
+      "AMZN",
+      "AMD",
+      "TSLA",
+      "PLTR",
+      "CRWD",
+      "SMCI",
+      "ARM",
+      "MSTR"
+    ],
+    "tier2_tech": [
+      "ORCL",
+      "CRM",
+      "NOW",
+      "SNOW",
+      "NET",
+      "MDB",
+      "DDOG",
+      "SHOP",
+      "UBER",
+      "ABNB",
+      "RBLX"
+    ],
+    "tier2_semis": [
+      "QCOM",
+      "AVGO",
+      "INTC",
+      "MRVL",
+      "ON",
+      "TXN",
+      "AMAT",
+      "LRCX",
+      "KLAC"
+    ],
+    "tier2_biotech": [
+      "MRNA",
+      "BIIB",
+      "REGN",
+      "VRTX",
+      "LLY",
+      "PFE"
+    ],
+    "tier2_finance": [
+      "JPM",
+      "GS",
+      "BAC",
+      "MS",
+      "V",
+      "MA",
+      "COIN",
+      "HOOD"
+    ],
+    "tier2_energy": [
+      "XOM",
+      "CVX",
+      "OXY",
+      "SLB"
+    ],
+    "tier2_consumer": [
+      "WMT",
+      "COST",
+      "TGT",
+      "NKE",
+      "LULU"
+    ],
+    "etfs": [
+      "SPY",
+      "QQQ",
+      "IWM",
+      "SMH",
+      "XLK",
+      "XLF",
+      "XLE",
+      "ARKK",
+      "SOXL",
+      "TQQQ"
+    ],
+    "focus": [
+      "ARM"
+    ],
+    "_comment": "Tier 3 generated dynamically each morning from movers/earnings/unusual options"
+  },
+  "scan": {
+    "tier1_tickers": [
+      "NVDA",
+      "MSFT",
+      "AAPL",
+      "GOOGL",
+      "META",
+      "AMZN",
+      "AMD",
+      "TSLA",
+      "PLTR",
+      "CRWD",
+      "SMCI",
+      "ARM",
+      "MSTR"
+    ],
+    "default_timeout_seconds": 900,
+    "pre_score_min": 5.5,
+    "max_candidates_per_scan": 3
   }
 }

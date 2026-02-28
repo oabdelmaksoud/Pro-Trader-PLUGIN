@@ -17,11 +17,15 @@ Analyst Team → Researcher Debate → Trader → Risk Team → Portfolio Manage
 
 | Layer | Status | Notes |
 |---|---|---|
-| Broker API (Alpaca) | 🔴 TODO | tradingagents/brokers/alpaca.py |
-| Live data feed | 🔴 TODO | tradingagents/dataflows/alpaca_stream.py |
-| OMS (real execution) | 🔴 TODO | Extends portfolio_manager.py |
-| Portfolio state (Redis) | 🟡 In progress | Redis already in deps |
-| OpenClaw agent wrappers | 🟡 In progress | Via CooperCorp inbox system |
+| Broker API (Alpaca) | ✅ Built | `tradingagents/brokers/alpaca.py` — Full Alpaca integration |
+| Live data feed | ✅ Built | `tradingagents/dataflows/alpaca_stream.py` — Real-time streaming |
+| OMS (real execution) | ✅ Built | `tradingagents/execution/executor.py` — Order management |
+| Risk controls | ✅ Built | Circuit breaker, portfolio heat monitoring |
+| News & sentiment | ✅ Built | News aggregator, Google News, Reddit, Stocktwits |
+| Options data | ✅ Built | CBOE options chain, IV percentile, options flow |
+| Real-time quotes | ✅ Built | `realtime_quotes.py`, Polygon, Finnhub integration |
+| Discord reporter | ✅ Built | OpenClaw-integrated alerts via Discord |
+| Portfolio state | 🟡 Config | Strategy config in `config/strategy.json` |
 
 ## LLM Configuration (CooperCorp)
 
@@ -35,6 +39,22 @@ config = {
 }
 ```
 
+## Trading Scripts
+
+| Script | Purpose |
+|---|---|
+| `run_live.py` | Main live trading entry point |
+| `trade_gate.py` | Trade execution with risk checks |
+| `stream_manager.py` | Market data stream management |
+| `get_market_data.py` | Multi-source market data fetching |
+| `account_status.py` | Alpaca account status |
+| `close_position.py` | Position closure with Discord alerts |
+| `reconcile_positions.py` | Position reconciliation |
+| `futures_monitor.py` | Futures market monitoring |
+| `gold_monitor.py` | Gold/commodities monitoring |
+| `weekly_review.py` | Weekly performance review |
+| `backtest.py` | Strategy backtesting |
+
 ## Team
 
 | Agent | Role | Task |
@@ -46,6 +66,14 @@ config = {
 | Vista 🔭 | Business Analyst | Market data source research |
 | Cipher 🔊 | Knowledge Curator | Docs + knowledge base |
 
+## Strategy Configuration
+
+See `config/strategy.json` for:
+- **Scoring weights**: catalyst (0.3), technical (0.25), sentiment (0.2), fundamental (0.15), risk_reward (0.1)
+- **Position sizing**: Max 2 positions, 5% default, stop at 3%, target 8%
+- **Risk management**: VIX-based sizing, correlation sector limits, daily loss cap
+- **Watchlist**: Tier 1 (13 tickers), Tier 2 (6 sectors), ETFs, focus list
+
 ## Upstream Sync
 
 ```bash
@@ -54,4 +82,4 @@ git merge upstream/main
 ```
 
 ---
-*CooperCorp AGI Team | PRJ-002 | 2026-02-27*
+*CooperCorp AGI Team | PRJ-002 | 2026-02-28*

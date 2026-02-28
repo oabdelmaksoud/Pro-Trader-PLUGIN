@@ -262,13 +262,27 @@ def format_signal_card(
     if meta:
         lines.append(" | ".join(meta))
 
-    # Options contracts section
+    # Options strategies section (multi-strategy)
     try:
-        from tradingagents.dataflows.options_chain import get_options_contracts, format_options_section
-        contracts = get_options_contracts(symbol, direction=direction, current_price=current_price)
-        if contracts:
+        from tradingagents.dataflows.options_chain import get_options_strategies, format_options_block
+        from tradingagents.dataflows.iv_percentile import get_iv_rank
+        iv_rank = None
+        try:
+            iv_data = get_iv_rank(symbol)
+            iv_rank = iv_data.get("iv_rank")
+        except Exception:
+            pass
+        strategies = get_options_strategies(
+            symbol,
+            direction=direction,
+            current_price=current_price,
+            iv_rank=iv_rank,
+            score=score if score else 7.0,
+        )
+        block = format_options_block(strategies)
+        if block:
             lines.append("")
-            lines.append(format_options_section(contracts, direction=direction))
+            lines.append(block)
     except Exception:
         pass
 

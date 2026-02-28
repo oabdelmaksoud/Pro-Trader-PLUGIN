@@ -22,7 +22,7 @@ from datetime import datetime
 
 # Alpaca stream support via alpaca-py
 try:
-    from alpaca.data.live import StockDataStream
+    from alpaca.data.live import StockDataStream, OptionDataStream
     from alpaca.data.models import Bar, Trade, Quote
     ALPACA_PY_AVAILABLE = True
 except ImportError:
@@ -151,22 +151,54 @@ class AlpacaStream:
         PID_FILE.parent.mkdir(parents=True, exist_ok=True)
         PID_FILE.write_text(str(os.getpid()))
 
+        # Split symbols: options have long OCC-format names (>6 chars typically)
+        def is_option(sym: str) -> bool:
+            # OCC option symbols are 21 chars: e.g. NVDA260313P00175000
+            return len(sym) > 10 and any(c in sym for c in ('P', 'C')) and sym[-8:].isdigit()
+
+        stock_syms = [s for s in symbols if not is_option(s)]
+        option_syms = [s for s in symbols if is_option(s)]
+
+        if option_syms:
+            log.info(f"Options detected (will use OptionDataStream): {option_syms}")
+        if stock_syms:
+            log.info(f"Stocks (will use StockDataStream): {stock_syms}")
+
+        if not stock_syms and not option_syms:
+            log.warning("No valid symbols to stream.")
+            return
+
+        tasks = []
+
         try:
-            wss = StockDataStream(
-                api_key=self.api_key,
-                secret_key=self.secret_key,
-                feed="iex",  # iex = free tier real-time; use "sip" for paid
-            )
+            if stock_syms:
+                wss = StockDataStream(
+                    api_key=self.api_key,
+                    secret_key=self.secret_key,
+                    feed="iex",  # iex = free tier real-time; use "sip" for paid
+                )
+                for sym in stock_syms:
+                    wss.subscribe_trades(self.handle_trade, sym)
+                    self._subscribed.add(sym)
+                    log.info(f"Subscribed to {sym} stock trades")
+                self.wss_client = wss
+                tasks.append(asyncio.create_task(wss._run_forever()))
 
-            for sym in symbols:
-                wss.subscribe_trades(self.handle_trade, sym)
-                self._subscribed.add(sym)
-                log.info(f"Subscribed to {sym} trades")
+            if option_syms:
+                owss = OptionDataStream(
+                    api_key=self.api_key,
+                    secret_key=self.secret_key,
+                )
+                for sym in option_syms:
+                    owss.subscribe_trades(self.handle_trade, sym)
+                    self._subscribed.add(sym)
+                    log.info(f"Subscribed to {sym} option trades")
+                tasks.append(asyncio.create_task(owss._run_forever()))
 
-            self.wss_client = wss
             self.running = True
             log.info("Stream running. Press Ctrl+C to stop.")
-            await wss._run_forever()
+            if tasks:
+                await asyncio.gather(*tasks)
 
         except Exception as e:
             log.error(f"Stream error: {e}")

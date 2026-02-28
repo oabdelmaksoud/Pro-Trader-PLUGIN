@@ -20,6 +20,18 @@ import yfinance as yf
 import os
 
 
+def _get_realtime_price(sym: str) -> float:
+    """Get real-time price via Alpaca IEX → Finnhub → Polygon → Webull → yfinance fallback."""
+    try:
+        from tradingagents.dataflows.realtime_quotes import get_price
+        p = get_price(sym)
+        if p and p > 0:
+            return p
+    except Exception:
+        pass
+    return None
+
+
 def get_technicals(sym: str) -> dict:
     try:
         tk = yf.Ticker(sym)
@@ -27,8 +39,10 @@ def get_technicals(sym: str) -> dict:
         if hist.empty:
             return {"error": "no data"}
         close = hist["Close"]
-        price = float(close.iloc[-1])
-        prev = float(close.iloc[-2]) if len(close) > 1 else price
+        # Use real-time price if available, else fall back to last daily close
+        rt_price = _get_realtime_price(sym)
+        price = rt_price if rt_price else float(close.iloc[-1])
+        prev = float(close.iloc[-1])  # compare to yesterday's close
         change_pct = (price - prev) / prev * 100
 
         # RSI
@@ -109,16 +123,32 @@ def get_fundamentals(sym: str) -> dict:
         return {"error": str(e)}
 
 
-def get_news_headlines(sym: str, limit: int = 5) -> list:
+def get_news_headlines(sym: str, limit: int = 8) -> list:
+    """Get news from 6 aggregated sources (Yahoo, Finnhub, PRN, MarketWatch, NewsAPI, Google)."""
     try:
-        tk = yf.Ticker(sym)
-        news = tk.news or []
+        from tradingagents.dataflows.news_aggregator import get_ticker_news
+        items = get_ticker_news(sym, limit=limit)
         return [
-            {"title": n.get("content", {}).get("title", ""), "publisher": n.get("content", {}).get("provider", {}).get("displayName", "")}
-            for n in news[:limit]
+            {
+                "title":     i.get("title", ""),
+                "publisher": i.get("source", ""),
+                "sentiment": i.get("sentiment", "neutral"),
+                "time":      i.get("published_fmt", ""),
+                "url":       i.get("url", ""),
+            }
+            for i in items
         ]
-    except Exception as e:
-        return [{"error": str(e)}]
+    except Exception:
+        # fallback to yfinance
+        try:
+            tk = yf.Ticker(sym)
+            news = tk.news or []
+            return [
+                {"title": n.get("content", {}).get("title", ""), "publisher": n.get("content", {}).get("provider", {}).get("displayName", "")}
+                for n in news[:limit]
+            ]
+        except Exception as e:
+            return [{"error": str(e)}]
 
 
 def get_options_flow(sym: str) -> dict:
