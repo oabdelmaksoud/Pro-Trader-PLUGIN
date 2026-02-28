@@ -288,6 +288,156 @@ def _get_short_interest(sym: str) -> dict:
         return {"error": str(e)}
 
 
+def _get_insider_trades(sym: str) -> list:
+    """OpenInsider — recent Form 4 insider buys/sells for this ticker."""
+    try:
+        import requests
+        r = requests.get(
+            f"https://openinsider.com/screener?s={sym}&o=&pl=&ph=&ll=&lh=&fd=7&fdr=&td=0&tdr=&fdlyl=&fdlyh=&daysago=7&xp=1&xs=1&vl=&vh=&ocl=&och=&sic1=-1&sicl=100&sich=9999&grp=0&nfl=&nfh=&nil=&nih=&nol=&noh=&v2l=&v2h=&oc2l=&oc2h=&sortcol=0&cnt=10&action=1",
+            timeout=5, headers={"User-Agent": "Mozilla/5.0"}
+        )
+        if not r.ok:
+            return []
+        # Parse HTML table — extract insider transactions
+        from html.parser import HTMLParser
+        class TableParser(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.rows = []
+                self.current_row = []
+                self.in_td = False
+            def handle_starttag(self, tag, attrs):
+                if tag == "tr":
+                    self.current_row = []
+                elif tag == "td":
+                    self.in_td = True
+            def handle_endtag(self, tag):
+                if tag == "tr" and len(self.current_row) >= 5:
+                    self.rows.append(self.current_row[:])
+                elif tag == "td":
+                    self.in_td = False
+            def handle_data(self, data):
+                if self.in_td:
+                    self.current_row.append(data.strip())
+        p = TableParser()
+        p.feed(r.text)
+        trades = []
+        for row in p.rows[1:6]:  # skip header, take top 5
+            if len(row) >= 8:
+                trades.append({
+                    "date": row[1] if len(row) > 1 else "",
+                    "name": row[3] if len(row) > 3 else "",
+                    "title": row[4] if len(row) > 4 else "",
+                    "type": row[5] if len(row) > 5 else "",
+                    "value": row[7] if len(row) > 7 else "",
+                })
+        return trades
+    except Exception as e:
+        return [{"error": str(e)}]
+
+
+def _get_congressional_trades(sym: str) -> list:
+    """Quiver Quant — recent congressional stock trades for this ticker."""
+    try:
+        import requests
+        r = requests.get(
+            f"https://api.quiverquant.com/beta/historical/congresstrading/{sym}",
+            headers={"accept": "application/json"}, timeout=5
+        )
+        if not r.ok:
+            return []
+        data = r.json()
+        if not isinstance(data, list):
+            return []
+        return [
+            {
+                "date": t.get("Date", ""),
+                "politician": t.get("Politician", ""),
+                "party": t.get("Party", ""),
+                "transaction": t.get("Transaction", ""),
+                "range": t.get("Range", ""),
+            }
+            for t in data[:5]
+        ]
+    except Exception as e:
+        return [{"error": str(e)}]
+
+
+def _get_global_context() -> dict:
+    """Global indices, commodities, FX — Nikkei, FTSE, DAX, Oil, Gold, DXY."""
+    try:
+        import yfinance as yf
+        global_syms = {
+            "nikkei": "^N225", "ftse": "^FTSE", "dax": "^GDAXI",
+            "hang_seng": "^HSI", "shanghai": "000001.SS",
+            "oil_wti": "CL=F", "oil_brent": "BZ=F", "gold": "GC=F",
+            "silver": "SI=F", "nat_gas": "NG=F",
+            "dxy": "DX-Y.NYB", "eurusd": "EURUSD=X", "usdjpy": "JPY=X",
+        }
+        result = {}
+        tickers = yf.Tickers(" ".join(global_syms.values()))
+        for label, sym in global_syms.items():
+            try:
+                info = tickers.tickers[sym].fast_info
+                result[label] = {
+                    "price": round(float(info.last_price), 4) if info.last_price else None,
+                    "change_pct": round((float(info.last_price) - float(info.previous_close)) / float(info.previous_close) * 100, 2) if info.last_price and info.previous_close else None,
+                }
+            except Exception:
+                result[label] = {"price": None, "change_pct": None}
+        return result
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _get_gov_rss_events() -> list:
+    """Recent events from government RSS feeds — Fed, FDA, Treasury, White House, SEC."""
+    try:
+        import feedparser
+        from datetime import datetime, timezone, timedelta
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+        feeds = [
+            ("Federal Reserve", "https://www.federalreserve.gov/feeds/press_all.xml"),
+            ("FDA", "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/press-releases/rss.xml"),
+            ("Treasury", "https://home.treasury.gov/news/press-releases/rss.xml"),
+            ("White House", "https://www.whitehouse.gov/feed/"),
+            ("SEC Litigation", "https://www.sec.gov/rss/litigation/litreleases.xml"),
+            ("DOJ", "https://www.justice.gov/news/rss"),
+            ("FTC", "https://www.ftc.gov/feeds/press-releases/rss.xml"),
+        ]
+        events = []
+        for name, url in feeds:
+            try:
+                f = feedparser.parse(url)
+                for e in f.entries[:3]:
+                    events.append({
+                        "source": name,
+                        "title": e.get("title", ""),
+                        "url": e.get("link", ""),
+                        "published": e.get("published", ""),
+                    })
+            except Exception:
+                pass
+        return events[:15]
+    except Exception as e:
+        return [{"error": str(e)}]
+
+
+def _get_spotgamma_levels() -> list:
+    """SpotGamma gamma exposure + key price levels."""
+    try:
+        import requests
+        r = requests.get(
+            "https://spotgamma.com/wp-json/wp/v2/posts?per_page=3&_fields=title,link,date",
+            timeout=5
+        )
+        if not r.ok:
+            return []
+        return [{"title": p["title"]["rendered"], "url": p["link"], "date": p["date"]} for p in r.json()]
+    except Exception as e:
+        return [{"error": str(e)}]
+
+
 def get_polygon_movers() -> dict:
     """Top gainers and losers — used for Tier 3 dynamic candidates."""
     try:
@@ -322,7 +472,25 @@ def gather_ticker_data(sym: str, full: bool = False) -> dict:
         data["google_news"] = _get_google_news(sym)
         data["sec_filings"] = _get_sec_filings(sym)
         data["short_interest"] = _get_short_interest(sym)
+        # New: institutional + insider intelligence
+        data["insider_trades"] = _get_insider_trades(sym)
+        data["congressional_trades"] = _get_congressional_trades(sym)
+        # New: global macro context (shared, cached at call level)
+        data["global_context"] = _get_global_context()
+        data["gov_rss_events"] = _get_gov_rss_events()
+        data["spotgamma_levels"] = _get_spotgamma_levels()
     return data
+
+
+def gather_macro_context() -> dict:
+    """Standalone macro snapshot — global indices, commodities, FX, gov events, SpotGamma."""
+    return {
+        "as_of": datetime.now().isoformat(),
+        "global_markets": _get_global_context(),
+        "gov_rss_events": _get_gov_rss_events(),
+        "spotgamma_levels": _get_spotgamma_levels(),
+        "market_context": _get_market_context(),
+    }
 
 
 def score_ticker(data: dict) -> float:
@@ -376,7 +544,34 @@ def score_ticker(data: dict) -> float:
     elif bull_pct > 40:
         score += 0.2
 
-    return round(min(score, 9.0), 1)
+    # Insider trades — cluster buys are bullish signal
+    insiders = data.get("insider_trades", [])
+    buys = [t for t in insiders if isinstance(t, dict) and "P" in t.get("type", "")]
+    if len(buys) >= 2:
+        score += 0.6  # cluster insider buying
+    elif len(buys) == 1:
+        score += 0.3
+
+    # Congressional trades — politicians buying = bullish signal
+    congress = data.get("congressional_trades", [])
+    cong_buys = [t for t in congress if isinstance(t, dict) and "Purchase" in t.get("transaction", "")]
+    if cong_buys:
+        score += 0.4
+
+    # Global macro risk — if oil/gold spiking or DXY crashing, reduce score for tech
+    global_ctx = data.get("global_context", {})
+    oil = global_ctx.get("oil_wti", {})
+    oil_chg = oil.get("change_pct")
+    if oil_chg and oil_chg > 3:
+        # Oil spike = risk-off for tech, boost for energy
+        fund = data.get("fundamentals", {})
+        sector = fund.get("sector", "")
+        if "Energy" in sector:
+            score += 0.5
+        elif "Technology" in sector or "Communication" in sector:
+            score -= 0.5
+
+    return round(min(max(score, 0.0), 9.0), 1)
 
 
 def main():
@@ -385,9 +580,14 @@ def main():
     parser.add_argument("--movers", action="store_true", help="Get top market movers (Tier 3 candidates)")
     parser.add_argument("--gaps", action="store_true", help="Get pre-market gap candidates")
     parser.add_argument("--context", action="store_true", help="Get market-wide context (VIX, F&G, sector, BTC)")
-    parser.add_argument("--full", action="store_true", help="Include fundamentals, options, sentiment")
+    parser.add_argument("--macro", action="store_true", help="Get full macro snapshot: global markets + gov RSS + SpotGamma")
+    parser.add_argument("--full", action="store_true", help="Include fundamentals, options, sentiment, insider, congressional, global macro")
     parser.add_argument("--score", action="store_true", help="Include pre-scores")
     args = parser.parse_args()
+
+    if args.macro:
+        print(json.dumps(gather_macro_context(), indent=2))
+        return
 
     if args.movers:
         print(json.dumps(get_polygon_movers(), indent=2))
