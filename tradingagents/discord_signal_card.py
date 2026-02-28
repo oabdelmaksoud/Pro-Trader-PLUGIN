@@ -289,6 +289,10 @@ def format_signal_card(
     if notes:
         lines.append(notes)
 
+    # TradingView chart link
+    tv_sym = symbol.replace("/", "").replace("-", "")
+    lines.append(f"📊 Chart: https://tradingview.com/chart/?symbol={tv_sym}")
+
     lines.append(f"— {agent} | CooperCorp PRJ-002")
 
     return "\n".join(lines)
