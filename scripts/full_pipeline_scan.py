@@ -32,9 +32,9 @@ load_dotenv(REPO / ".env")
 def run_agent(agent_id: str, prompt: str, timeout: int = 90) -> str:
     """Run an agent via openclaw oracle and return its output."""
     result = subprocess.run(
-        ["openclaw", "oracle", "--model",
-         "opus" if agent_id in ("bull", "bear") else "sonnet",
-         "--print", prompt],
+        ["claude", "--print", "--model",
+         "claude-opus-4-6" if agent_id in ("bull", "bear") else "claude-sonnet-4-6",
+         prompt],
         capture_output=True, text=True, timeout=timeout, cwd=str(REPO)
     )
     return result.stdout.strip() if result.returncode == 0 else f"[{agent_id} error: {result.stderr[:100]}]"

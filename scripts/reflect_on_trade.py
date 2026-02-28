@@ -112,7 +112,7 @@ def main():
     # Spawn reflection via openclaw sessions_spawn equivalent: use oracle or direct LLM call
     # We use openclaw CLI to run a quick isolated session
     result = subprocess.run(
-        ["openclaw", "oracle", "--model", "sonnet", "--print", prompt],
+        ["claude", "--print", "--model", "claude-sonnet-4-6", prompt],
         capture_output=True, text=True, timeout=90, cwd=str(REPO)
     )
 

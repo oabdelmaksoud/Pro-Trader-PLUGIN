@@ -59,7 +59,7 @@ Be specific. Keep to 200 words. Conclude with: CONVICTION: [1-10]"""
 
         try:
             bull_result = subprocess.run(
-                ["openclaw", "oracle", "--model", "opus", "--print", bull_rebuttal_prompt],
+                ["claude", "--print", "--model", "claude-opus-4-6", bull_rebuttal_prompt],
                 capture_output=True, text=True, timeout=60, cwd=str(REPO)
             )
             if bull_result.returncode == 0 and bull_result.stdout.strip():
@@ -69,7 +69,7 @@ Be specific. Keep to 200 words. Conclude with: CONVICTION: [1-10]"""
 
         try:
             bear_result = subprocess.run(
-                ["openclaw", "oracle", "--model", "opus", "--print", bear_rebuttal_prompt],
+                ["claude", "--print", "--model", "claude-opus-4-6", bear_rebuttal_prompt],
                 capture_output=True, text=True, timeout=60, cwd=str(REPO)
             )
             if bear_result.returncode == 0 and bear_result.stdout.strip():
