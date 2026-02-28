@@ -1,7 +1,9 @@
 """
 CooperCorp PRJ-002 — Multi-Strategy Options Engine
-Data source: CBOE real-time options (no API key, no login)
-Fallback: yfinance (15-min delayed)
+Data source priority: Tradier → CBOE → yfinance (15-min delayed)
+  - Tradier: fastest refresh, best greeks (requires free API token)
+  - CBOE: real-time, no API key needed
+  - yfinance: 15-min delayed fallback
 Suggests optimal strategies across DIRECTIONAL, NEUTRAL, and INCOME plays
 based on IV rank, signal direction, and market context.
 
@@ -30,6 +32,15 @@ def _get_cboe_chain(ticker: str):
     try:
         from tradingagents.dataflows.cboe_options import get_options_chain
         return get_options_chain(ticker)
+    except Exception:
+        return None
+
+
+def _get_tradier_chain(ticker: str):
+    """Get Tradier options chain (fastest, requires TRADIER_API_KEY)."""
+    try:
+        from tradingagents.dataflows.tradier_options import get_tradier_chain
+        return get_tradier_chain(ticker)
     except Exception:
         return None
 
@@ -434,13 +445,22 @@ def get_options_strategies(
         }
     """
     try:
-        # ── Try CBOE first (real-time, no API key) ──
-        cboe_chain = _get_cboe_chain(symbol)
-        use_cboe = cboe_chain is not None and len(cboe_chain.get("calls", [])) > 0
+        # ── Try Tradier first (fastest, requires API key) ──
+        tradier_chain = _get_tradier_chain(symbol)
+        use_tradier = tradier_chain is not None and len(tradier_chain.get("calls", [])) > 0
 
-        # Get current price (CBOE first, then Alpaca, then yfinance)
+        # ── Fallback to CBOE (real-time, no API key) ──
+        cboe_chain = None
+        use_cboe = False
+        if not use_tradier:
+            cboe_chain = _get_cboe_chain(symbol)
+            use_cboe = cboe_chain is not None and len(cboe_chain.get("calls", [])) > 0
+
+        # Get current price (Tradier → CBOE → Alpaca → yfinance)
         if not current_price:
-            if use_cboe and cboe_chain.get("price"):
+            if use_tradier and tradier_chain.get("price"):
+                current_price = tradier_chain["price"]
+            elif use_cboe and cboe_chain.get("price"):
                 current_price = cboe_chain["price"]
             else:
                 try:
@@ -455,8 +475,8 @@ def get_options_strategies(
         if not current_price:
             return {"ticker": symbol, "error": "price unavailable"}
 
-        # If CBOE works, build strategies directly from CBOE contracts
-        if use_cboe:
+        # If CBOE works (and Tradier unavailable), build strategies from CBOE contracts
+        if use_cboe and not use_tradier:
             from tradingagents.dataflows.cboe_options import get_contracts_near_strike
             labels_dir  = ["🥇 BEST", "🥈 ALT", "🎰 SWING"]
             labels_neu  = ["⚡ VOL PLAY", "🦅 SPREAD"]
