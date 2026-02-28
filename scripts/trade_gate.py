@@ -154,16 +154,29 @@ def main():
         return
 
     try:
-        # Size position — VIX-adjusted, conviction-scaled
+        # Size position — Kelly Criterion + VIX-adjusted, conviction-scaled
         bp = broker.get_buying_power()
         vix = get_current_vix()
-        vix_mult = get_vix_multiplier(vix)
-        conviction_pct = get_position_pct(args.conviction)
-        final_pct = conviction_pct * vix_mult
-        budget = bp * final_pct
         side = "buy" if args.action == "BUY" else "sell"
-        qty = max(1, int(budget / signal["price_at_signal"])) if signal["price_at_signal"] > 0 else 0
-        print(f"Sizing: conviction={args.conviction} → {conviction_pct*100:.0f}% × VIX({vix:.0f}) mult {vix_mult} = {final_pct*100:.1f}% = {qty} shares")
+        try:
+            from tradingagents.risk.kelly_sizing import get_kelly_size
+            kelly_result = get_kelly_size(
+                ticker=args.ticker,
+                portfolio_value=bp,
+                vix=vix,
+                current_price=signal["price_at_signal"]
+            )
+            budget = kelly_result["dollar_amount"]
+            qty = kelly_result["shares"] or max(1, int(budget / signal["price_at_signal"]))
+            print(f"Sizing (Kelly): fraction={kelly_result['fraction']:.1%} × VIX({vix:.0f}) = ${budget:.0f} = {qty} shares [WR={kelly_result['win_rate_used']:.0%}, method={kelly_result['method']}]")
+        except Exception as _ke:
+            print(f"WARN: Kelly sizing failed ({_ke}), falling back to conviction-based")
+            vix_mult = get_vix_multiplier(vix)
+            conviction_pct = get_position_pct(args.conviction)
+            final_pct = conviction_pct * vix_mult
+            budget = bp * final_pct
+            qty = max(1, int(budget / signal["price_at_signal"])) if signal["price_at_signal"] > 0 else 0
+            print(f"Sizing (fallback): conviction={args.conviction} → {conviction_pct*100:.0f}% × VIX({vix:.0f}) mult {vix_mult} = {final_pct*100:.1f}% = {qty} shares")
 
         if args.dry_run:
             if signal["price_at_signal"] <= 0:
@@ -191,6 +204,35 @@ def main():
         signal["acted_on"] = True
         signal["skip_reason"] = None
         logger.log_signal(signal)
+
+        # Log to signal DB
+        try:
+            from tradingagents.db.signal_db import log_signal as db_log_signal, mark_entered
+            db_signal_id = db_log_signal(
+                ticker=args.ticker,
+                pre_score=args.score,
+                final_score=args.score,
+                conviction=args.conviction
+            )
+            mark_entered(db_signal_id, signal["price_at_signal"])
+            # Persist signal_id for close_position.py to use
+            import json as _json
+            _sid_path = Path(__file__).parent.parent / "logs" / "open_trades"
+            _sid_path.mkdir(parents=True, exist_ok=True)
+            (_sid_path / f"{args.ticker}.signal_id").write_text(str(db_signal_id))
+        except Exception as _e:
+            print(f"WARN: signal_db log error: {_e}")
+
+        # VWAP advisory check
+        try:
+            from tradingagents.execution.vwap_entry import should_enter_now, get_limit_price
+            vwap_ok, vwap_reason, suggested_limit = should_enter_now(args.ticker, signal["price_at_signal"], args.score)
+            signal["vwap_checked"] = True
+            signal["limit_price"] = suggested_limit
+            if not vwap_ok:
+                print(f"VWAP advisory: {vwap_reason} (suggested limit: ${suggested_limit:.2f})")
+        except Exception:
+            pass
 
         # Save open trade record
         import json

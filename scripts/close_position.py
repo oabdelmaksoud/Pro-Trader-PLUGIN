@@ -112,6 +112,19 @@ def main():
     except Exception as e:
         print(f"Warning: ledger.record_close failed: {e}")
 
+    # Log outcome to signal DB
+    try:
+        from pathlib import Path as _Path
+        from tradingagents.db.signal_db import log_outcome as db_log_outcome
+        _sid_file = _Path(__file__).parent.parent / "logs" / "open_trades" / f"{args.ticker}.signal_id"
+        if _sid_file.exists():
+            _signal_id = int(_sid_file.read_text().strip())
+            db_log_outcome(_signal_id, exit_price, pnl_pct / 100.0, args.reason)
+            _sid_file.unlink(missing_ok=True)
+            print(f"Signal DB outcome logged: signal_id={_signal_id} pnl={pnl_pct:.1f}%")
+    except Exception as _e:
+        print(f"WARN: signal_db outcome log failed: {_e}")
+
     # Post exit card to Discord (standardized signal card format)
     try:
         import subprocess

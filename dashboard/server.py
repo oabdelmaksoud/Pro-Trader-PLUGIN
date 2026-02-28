@@ -765,6 +765,40 @@ class Handler(BaseHTTPRequestHandler):
                 "server":         "ok",
             })
 
+        elif path == "/api/backtest":
+            import json as _json
+            backtest_file = REPO_ROOT / "logs" / "backtest_latest.json"
+            if backtest_file.exists():
+                try:
+                    with open(backtest_file) as f:
+                        self.send_json(_json.load(f))
+                except Exception as e:
+                    self.send_json({"error": str(e)})
+            else:
+                self.send_json({"error": "No backtest results yet. Run: python3 scripts/run_backtest.py"})
+
+        elif path == "/api/signal_stats":
+            try:
+                from tradingagents.db.signal_db import get_all_stats
+                self.send_json({"stats": get_all_stats()})
+            except Exception as e:
+                self.send_json({"error": str(e), "stats": []})
+
+        elif path.startswith("/sw.js") or path.startswith("/manifest.json"):
+            # Serve PWA files
+            import os
+            file_path = REPO_ROOT / "dashboard" / path.lstrip("/")
+            if file_path.exists():
+                content = file_path.read_bytes()
+                content_type = "application/javascript" if path.endswith(".js") else "application/json"
+                self.send_response(200)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", len(content))
+                self.end_headers()
+                self.wfile.write(content)
+            else:
+                self.send_response(404); self.end_headers()
+
         else:
             self.send_response(404); self.end_headers()
 

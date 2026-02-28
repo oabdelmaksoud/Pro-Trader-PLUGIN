@@ -479,6 +479,30 @@ def gather_ticker_data(sym: str, full: bool = False) -> dict:
         data["global_context"] = _get_global_context()
         data["gov_rss_events"] = _get_gov_rss_events()
         data["spotgamma_levels"] = _get_spotgamma_levels()
+        # New: ML intelligence sources
+        try:
+            from tradingagents.dataflows.finbert_sentiment import get_ticker_sentiment_score
+            all_headlines = []
+            for key in ["news", "finnhub_news", "av_news", "polygon_news", "newsapi_news", "google_news"]:
+                all_headlines.extend(data.get(key, []) or [])
+            data["finbert_sentiment"] = get_ticker_sentiment_score(all_headlines)
+        except Exception:
+            data["finbert_sentiment"] = None
+        try:
+            from tradingagents.dataflows.institutional_tracker import get_ticker_institutional_ownership
+            data["institutional_ownership"] = get_ticker_institutional_ownership(sym)
+        except Exception:
+            data["institutional_ownership"] = {}
+        try:
+            from tradingagents.dataflows.catalyst_feeds import get_catalyst_data
+            data["catalyst_data"] = get_catalyst_data(sym)
+        except Exception:
+            data["catalyst_data"] = {}
+        try:
+            from tradingagents.dataflows.gex_analysis import get_gex_levels
+            data["gex_levels"] = get_gex_levels(sym)
+        except Exception:
+            data["gex_levels"] = {}
     return data
 
 
@@ -570,6 +594,71 @@ def score_ticker(data: dict) -> float:
             score += 0.5
         elif "Technology" in sector or "Communication" in sector:
             score -= 0.5
+
+    # Historical win-rate bonus (from signal DB)
+    try:
+        from tradingagents.db.signal_db import get_ticker_stats
+        stats = get_ticker_stats(sym)
+        if stats and stats.get("total_signals", 0) >= 5:
+            wr = stats.get("win_rate", 0)
+            if wr > 0.65:
+                score += 0.3
+            elif wr < 0.40:
+                score -= 0.3
+    except Exception:
+        pass
+
+    # FinBERT NLP sentiment bonus
+    try:
+        fb = data.get("finbert_sentiment", {})
+        if fb and fb.get("available"):
+            fs = fb.get("finbert_score", 0)
+            if fs > 0.6:
+                score += 0.8
+            elif fs > 0.3:
+                score += 0.5
+            elif fs < -0.6:
+                score -= 0.8
+            elif fs < -0.3:
+                score -= 0.5
+    except Exception:
+        pass
+
+    # 13F institutional ownership bonus
+    try:
+        inst = data.get("institutional_ownership", {})
+        net_buyers = inst.get("net_buyers", 0)
+        if net_buyers >= 3:
+            score += 0.6
+        elif net_buyers >= 1:
+            score += 0.3
+    except Exception:
+        pass
+
+    # Catalyst feeds bonus (clinical trials, FDA)
+    try:
+        cat = data.get("catalyst_data", {})
+        min_days = cat.get("min_days_to_catalyst")
+        if min_days is not None:
+            if min_days <= 14:
+                score += 0.7
+            elif min_days <= 60:
+                score += 0.5
+    except Exception:
+        pass
+
+    # GEX regime bonus
+    try:
+        gex = data.get("gex_levels", {})
+        if gex:
+            if gex.get("regime") == "negative_gamma":
+                score += 0.2
+            if gex.get("call_wall_distance_pct", 99) < 1.0:
+                score -= 0.2
+            if gex.get("put_wall_distance_pct", 99) < 1.0:
+                score += 0.2
+    except Exception:
+        pass
 
     return round(min(max(score, 0.0), 9.0), 1)
 
