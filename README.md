@@ -1,18 +1,28 @@
 # 🦅 ProTrader — Autonomous Multi-Agent Trading System
 
-> **Target:** $1,000,000 from $100,499 | Paper trading via Alpaca | Zero manual steps
+> **Target:** $1,000,000 from $100,499 | Paper trading via Alpaca | Zero manual steps | Built on OpenClaw
 
 [![CI](https://img.shields.io/badge/CI-8%2F8%20passing-brightgreen)](https://github.com/oabdelmaksoud/protrader)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://python.org)
+[![Agents](https://img.shields.io/badge/agents-7%20active-purple)](https://github.com/oabdelmaksoud/protrader)
+[![News](https://img.shields.io/badge/news%20scan-every%202%20min-orange)](https://github.com/oabdelmaksoud/protrader)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ---
 
-## Overview
+## What Is This?
 
-ProTrader is a fully autonomous 7-agent trading pipeline built on [OpenClaw](https://openclaw.ai). It runs 24/7, scans markets 5× per day, manages risk automatically, and posts real-time signals to Discord. No API keys for LLMs — all inference runs natively through OpenClaw.
+ProTrader is a **fully autonomous trading system** that runs 24/7 on a Mac. It:
 
-**Current portfolio:** ~$100,394 | **Status:** Active, paper trading | **Week:** 2
+- 🔍 **Scans markets 5× per day** using 7 specialized AI agents in parallel
+- 📡 **Monitors breaking news every 2 minutes** — both macro events and stock-specific catalysts
+- 🧠 **Debates every trade** using a Bull vs Bear multi-round argument engine
+- 🚦 **Gates every entry** through 9 risk checkpoints before touching Alpaca
+- 📊 **Posts real-time signals** to Discord with standardized signal cards
+- 🔄 **Learns from every trade** via post-trade LLM reflection and BM25 memory
+- 👥 **Serves private member channels** — personal trade alerts, portfolio analysis, live quotes
+
+No separate LLM API keys needed. All inference runs through OpenClaw's native model routing.
 
 ---
 
@@ -45,7 +55,7 @@ flowchart TD
     SIGPROC --> INTEL["📦 load_intelligence_context\nguru + sentiment + short interest bonuses"]
     SIGNALS --> INTEL
 
-    INTEL --> GATE["🚦 trade_gate.py\nGates 1-5 + Kelly + Drawdown"]
+    INTEL --> GATE["🚦 trade_gate.py\nGates 1-9 + Kelly + Drawdown"]
 
     GATE -->|score ≥ 7.0| ORDER["📋 Alpaca Bracket Order\nstop -3% · target +8%"]
     GATE -->|score < 7.0| SKIP["⏭️ Skip — No Trade"]
@@ -65,72 +75,64 @@ flowchart TD
 
 ---
 
+### Real-Time News Pipeline (runs in parallel, every 2 min)
+
+```mermaid
+flowchart LR
+    subgraph BN["📡 Breaking News Monitor (081e1c4f)"]
+        RSS["20 RSS Feeds\n(Reuters, SEC, FDA, Fed,\nDOJ, Al Jazeera, etc.)"]
+        FIN["Finnhub API\n10 macro tickers\n4-min dedup window"]
+    end
+
+    subgraph TNS["🔍 Ticker News Scanner (3e8e6ce8)"]
+        KW["Layer 1: Keyword Regex\ninstant · free\n~85% of catalysts"]
+        LLM["Layer 2: LLM Verify\nclaude-haiku · ~50 tokens\nambiguous + hits only"]
+    end
+
+    RSS --> TIER{"Tier\nClassification"}
+    FIN --> TIER
+    KW --> LLM
+    LLM --> SESSION{"Session\nRouting"}
+
+    TIER -->|TIER 1: war/Fed/Hormuz| WR1["#breaking-news\n#war-room + TTS"]
+    TIER -->|TIER 2: earnings/FDA/insider| WR2["#breaking-news\n#war-room"]
+
+    SESSION -->|regular 9:30-4 PM| TRIG1["trade_gate.py\nnormal rules"]
+    SESSION -->|premarket / afterhours| TRIG2["trade_gate.py\nextended_hours=True"]
+    SESSION -->|crypto_active 24/7| TRIG3["trade_gate.py\nalways open"]
+    SESSION -->|futures_active 24/7| TRIG3
+    SESSION -->|closed overnight| ALERT["#war-room\npre-position alert\nfor next open"]
+
+    TRIG1 --> NTT["news_trade_trigger.py\n+1.2 / +0.6 score boost"]
+    TRIG2 --> NTT
+    TRIG3 --> NTT
+```
+
+---
+
 ### Trade Gate Sequence
 
 ```mermaid
 sequenceDiagram
-    participant S as full_pipeline_scan
+    participant S as full_pipeline_scan / news_trade_trigger
     participant G as trade_gate.py
-    participant CB as Circuit Breaker
     participant K as Kelly Sizer
     participant A as Alpaca API
     participant D as Discord
 
     S->>G: score=7.8, conviction=8, ticker=NVDA
-    G->>G: ① Drawdown state check (logs/drawdown_state.json)
-    G->>G: ② Market hours validation (9:30–2:30 PM ET)
-    G->>CB: ③ Individual circuit breaker check
-    CB-->>G: ✅ OK
-    G->>G: ④ Earnings proximity filter (skip if <1 day)
-    G->>G: ⑤ Correlation filter (max 2 correlated)
-    G->>K: ⑥ Kelly sizing (half-Kelly · rolling win rate)
+    G->>G: ① Drawdown state check
+    G->>G: ② Market session validation
+    G->>G: ③ Individual circuit breaker
+    G->>G: ④ Earnings proximity filter
+    G->>G: ⑤ Correlation filter (max 2)
+    G->>K: ⑥ Kelly sizing (half-Kelly)
     K-->>G: position_size = 4.2%
     G->>G: ⑦ VWAP advisory (non-blocking)
-    G->>G: ⑧ Guru bonus injection (+0.9 if Pelosi/Druckenmiller)
-    G->>A: ⑨ Submit bracket order (entry + stop + target)
-    A-->>G: order_id confirmed
+    G->>G: ⑧ Guru bonus injection
+    G->>A: ⑨ Submit bracket order
+    A-->>G: order confirmed
     G->>D: 📊 Signal card → #paper-trades
-    G->>G: Write .score .conviction .signal_id sidecars
-```
-
----
-
-### System Monitors (24/7)
-
-```mermaid
-graph LR
-    subgraph "24/7 Continuous"
-        BN["📡 Breaking News\nevery 2 min"] --> BNCH["#breaking-news\n#war-room"]
-        IS["🏛️ Iran Suppressor Refresh\nevery 3h"] --> DEDUP["dedup cache"]
-        OB["👥 Member Onboarding\nevery 5 min"] --> PC["Private Channels"]
-        MP["⚙️ Member Prefs\nevery 10 min"] --> PREFS["member_prefs.json"]
-    end
-
-    subgraph "Pre-Market 6–9:30 AM ET"
-        GT["🧠 Guru Tracker\n6 AM Mon–Fri"]
-        SA["💬 Sentiment\n8 AM Daily"]
-        FOMC["🏦 FOMC Monitor\n8 AM Daily"]
-        SI["📉 Short Interest\n8 AM Monday"]
-        WRB["🦅 War Room Brief\n8:45 AM Monday"]
-    end
-
-    subgraph "Market Hours 9:30 AM–4 PM ET"
-        S1["📊 Scan 9:30 AM\nfull_pipeline_scan"] --> TG["trade_gate"]
-        S2["📊 Scan 10:30 AM\nfull_pipeline_scan"] --> TG
-        S3["📊 Scan 12:00 PM\nfull_pipeline_scan"] --> TG
-        S4["📊 Scan 1:00 PM\nscore ≥7.5"] --> TG
-        S5["📊 Scan 2:30 PM\nlast window"] --> TG
-        DP["🌊 Dark Pool\nevery 30 min"]
-        DCB["🛑 Drawdown CB\nevery 15 min"]
-    end
-
-    subgraph "After Hours"
-        EC["📅 Earnings Calendar\n4 PM Daily"]
-        PNL["💰 P&L Snapshot\n4:05 PM Daily"]
-        AHE["📈 AH Earnings\n4–8 PM"]
-        WT["🐋 Whale Tracker\nevery 4h"]
-        OF["🌙 Overnight Futures\n11 PM / 2 AM / 5 AM"]
-    end
 ```
 
 ---
@@ -139,19 +141,21 @@ graph LR
 
 ```mermaid
 graph TD
-    BASE["Base Score\nFlash + Macro + Pulse analysis\n0–10 scale"] --> DEBATE["Bull vs Bear Debate\n±0.5 adjustment"]
+    BASE["Base Score\nFlash + Macro + Pulse\n0–10 scale"] --> DEBATE["Bull vs Bear Debate\n±adjustment"]
     DEBATE --> INTEL["Intelligence Bonuses"]
-    
-    GURU2["🧠 Guru Signal\nPelosi/Druckenmiller: +0.9\nTepper/Burry: +0.8\nBuffett/Ackman: +0.7\nCEO buy $500k+: +0.7\nCongressional: +0.4"]
-    SENT["💬 Sentiment Score\nbullish >0.5: +0.3\nbearish <-0.5: -0.3"]
-    SHORT["📉 Short Interest\nfloat >20%: +0.5\n(squeeze setup)"]
-    
-    GURU2 --> INTEL
-    SENT --> INTEL
-    SHORT --> INTEL
-    
+
+    G["🧠 Guru Signal\nPelosi: +0.9\nDruckenmiller: +0.9\nTepper/Burry: +0.8\nBuffett/Ackman: +0.7\nCongressional: +0.4"]
+    SE["💬 Sentiment\nbullish >0.5: +0.3\nbearish <-0.5: -0.3"]
+    SH["📉 Short Interest\nfloat >20%: +0.5"]
+    NW["📰 News Catalyst\nCATALYST_A: +1.2\nCATALYST_B: +0.6"]
+
+    G --> INTEL
+    SE --> INTEL
+    SH --> INTEL
+    NW --> INTEL
+
     INTEL --> FINAL["Final Score\ncapped at 10.0"]
-    
+
     FINAL -->|"≥7.0 (9:30–1 PM)"| ENTER["✅ Enter Trade"]
     FINAL -->|"≥7.5 (1–2:30 PM)"| ENTER
     FINAL -->|"< threshold"| PASS["⏭️ Pass"]
@@ -162,17 +166,95 @@ graph TD
 
 ---
 
+### System Monitor Schedule
+
+```mermaid
+gantt
+    title ProTrader Daily Schedule (ET)
+    dateFormat HH:mm
+    axisFormat %H:%M
+
+    section 24/7
+    Breaking News Monitor    :active, 00:00, 24:00
+    Ticker News Scanner      :active, 00:00, 24:00
+    Whale Tracker            :crit,   00:00, 24:00
+
+    section Pre-Market
+    Guru Tracker             :done,   06:00, 06:30
+    FOMC + Sentiment         :done,   08:00, 08:30
+    War Room Brief (Mon)     :done,   08:45, 09:00
+    Circuit Breaker Reset    :done,   09:25, 09:30
+
+    section Market Hours
+    9:30 AM Scan             :active, 09:30, 10:00
+    10:30 AM Scan            :active, 10:30, 11:00
+    12:00 PM Scan            :active, 12:00, 12:30
+    1:00 PM Scan             :active, 13:00, 13:30
+    2:30 PM Final Window     :crit,   14:30, 15:00
+    Dark Pool Monitor        :active, 09:30, 16:00
+    Drawdown Circuit Breaker :active, 09:30, 16:00
+
+    section After-Hours
+    Earnings Calendar        :done,   16:00, 16:30
+    Market Close P&L         :done,   16:05, 16:15
+    After-Hours Earnings     :done,   16:00, 20:00
+```
+
+---
+
 ## Agent Roster
 
-| Agent | Emoji | Model | Role |
-|-------|-------|-------|------|
-| Flash | 📈 | claude-sonnet-4-6 | Technical analysis — price action, MACD, BB, VWAP |
-| Macro | 🌍 | claude-sonnet-4-6 | Fundamentals, news, economic calendar |
-| Pulse | 💬 | claude-sonnet-4-6 | Sentiment, options flow, dark pool |
-| Bull | 🐂 | claude-opus-4-6 | Bullish researcher — debate round 1 |
-| Bear | 🐻 | claude-opus-4-6 | Bearish researcher — debate round 1 |
-| Risk | 🛡️ | claude-sonnet-4-6 | Risk Manager — position sizing, correlation |
-| Executor | ⚡ | claude-sonnet-4-6 | Trade execution, bracket orders, P&L |
+| Agent | Model | Role | When Active |
+|-------|-------|------|-------------|
+| Flash 📈 | claude-sonnet-4-6 | Technical analysis — price action, MACD, BB, VWAP | Every scan |
+| Macro 🌍 | claude-sonnet-4-6 | Fundamentals, news, economic calendar | Every scan |
+| Pulse 💬 | claude-sonnet-4-6 | Sentiment, options flow, dark pool | Every scan |
+| Bull 🐂 | claude-opus-4-6 | Bullish researcher — debate round 1 | Debate phase |
+| Bear 🐻 | claude-opus-4-6 | Bearish researcher — debate round 1 | Debate phase |
+| Risk 🛡️ | claude-sonnet-4-6 | Position sizing, correlation, drawdown | Gate phase |
+| Executor ⚡ | claude-sonnet-4-6 | Bracket orders, position monitoring, EOD close | Execution |
+
+---
+
+## Real-Time News Intelligence
+
+### Two parallel monitors (both run every 2 minutes)
+
+#### 1. Breaking News Monitor — Macro & Geopolitical
+Watches 20 RSS feeds + Finnhub API. Posts immediately on TIER 1/2 events.
+
+| Tier | Triggers | Action |
+|------|----------|--------|
+| TIER 1 | War, Fed emergency, Hormuz closure, regime collapse | #breaking-news + #war-room + TTS voice alert |
+| TIER 2 | Earnings surprise, M&A, FDA decision, congressional buy | #breaking-news + #war-room |
+| Silent | Nothing actionable | No post (never spams) |
+
+#### 2. Ticker News Scanner — Stock-Specific Catalysts
+Watches 20 watchlist tickers via Finnhub company-news API. Uses a 2-layer system:
+
+**Layer 1: Keyword Regex** (instant, free, ~85% accuracy)
+| Catalyst | Examples | Score Boost |
+|----------|----------|-------------|
+| CATALYST_A | EPS beat/miss, M&A, FDA approval, fraud, CEO departure | +1.2 |
+| CATALYST_B | Analyst upgrade/downgrade, partnership, product launch, index add | +0.6 |
+| CATALYST_C | Analyst note, price target, conference | logged only |
+| AMBIGUOUS | Mixed results, guidance, strategic review | → Layer 2 |
+
+**Layer 2: LLM Verification** (claude-haiku, ~50 tokens, fires only on hits + ambiguous)
+- Confirms BULLISH / BEARISH / NEUTRAL
+- Confirms MAJOR / MINOR / NONE impact
+- Can promote AMBIGUOUS → CATALYST_A/B or downgrade to neutral
+- Cost: ~5–15 calls/day = ~1,000 tokens (~93% cheaper than classifying all headlines)
+
+**Session-Aware Routing:**
+| Session | Hours | What Happens |
+|---------|-------|--------------|
+| Regular | 9:30 AM–4:00 PM ET | Trade executes normally |
+| Pre-market | 4:00 AM–9:30 AM ET | Alpaca `extended_hours=True`, spread warning |
+| After-hours | 4:00 PM–8:00 PM ET | Alpaca `extended_hours=True`, volume warning |
+| Crypto active | 24/7 | MSTR, COIN, RIOT, MARA always trigger |
+| Futures active | Sun 6PM–Fri 5PM ET | ES, NQ, CL, GC always trigger |
+| Closed | Overnight/weekend | Pre-position alert to #war-room for next open |
 
 ---
 
@@ -180,8 +262,8 @@ graph TD
 
 | Source | Data |
 |--------|------|
-| Alpaca IEX WebSocket | Real-time quotes (primary) |
-| Finnhub API | News, earnings, options chain |
+| Alpaca IEX WebSocket | Real-time quotes (primary feed) |
+| Finnhub API | News, earnings, options chain, company-news |
 | Alpha Vantage | MACD, Bollinger Bands |
 | Polygon.io | Options flow, tick data |
 | yfinance | Sector ETFs, futures, pre-market gaps |
@@ -193,228 +275,112 @@ graph TD
 | NY Fed | SOFR/EFFR liquidity stress |
 | Earnings Whisper | EPS whisper vs. consensus |
 | SpotGamma | GEX (gamma exposure) levels |
-| 20 RSS feeds | Breaking news: Reuters, Al Jazeera, SEC, FDA, Fed, DOJ, etc. |
-| yfinance / Alpaca | Pre-market gap analysis |
+| 20 RSS Feeds | Reuters, Al Jazeera, SEC, FDA, Fed, DOJ, etc. |
 
 ---
 
-## Key Scripts
+## Guru Tracker
 
-### Core Pipeline
-```
-scripts/
-├── get_market_data.py          # Data gatherer — 15+ sources, no LLM
-├── full_pipeline_scan.py       # Full 5-gap pipeline: data → agents → debate → signal → gate
-├── trade_gate.py               # Execution gateway: Gates 1-5 + Kelly + guru bonus + drawdown
-├── close_position.py           # Close gateway + outcome logging + async reflection
-└── quick_quote.py              # Fast live quote (1-5 tickers, ~3s)
-```
+Monitors 10 hedge fund managers + 5 politicians via 13F filings, STOCK Act disclosures, and GuruFocus RSS.
 
-### Intelligence / Alpha Generation
-```
-scripts/
-├── guru_tracker.py             # 13F + political trades + GuruFocus → score bonuses (6 AM daily)
-├── whale_tracker.py            # Congressional/insider/dark pool → #war-room (every 4h)
-├── news_trade_trigger.py       # News-to-trade bridge: TIER 1/2 → trade_gate
-├── futures_monitor.py          # Sunday pre-week futures bias card
-├── earnings_calendar.py        # Earnings pre-position + beat/miss (4 PM daily)
-├── economic_calendar.py        # CPI/FOMC/NFP 60-min warnings (hourly 9-4 PM)
-├── fomc_monitor.py             # FOMC 3-day pre-position window (8 AM daily)
-├── short_interest.py           # Short float >20% squeeze setups (Mon 8 AM)
-├── etf_flow_tracker.py         # Sector rotation via ETF volume (Mon 8 AM)
-├── dark_pool_monitor.py        # $1M+ block trades on watchlist (every 30 min)
-├── sentiment_aggregator.py     # Finnhub + news sentiment scores (8 AM daily)
-├── repo_rate_monitor.py        # SOFR/EFFR liquidity stress (9 AM daily)
-├── drawdown_monitor.py         # Portfolio 5% circuit breaker (every 15 min)
-├── reflect_on_trade.py         # Post-trade LLM reflection → BM25 memory
-├── wake_recovery.py            # MacBook sleep recovery
-└── process_member_prefs.py     # Member watchlist/risk commands (every 10 min)
-```
+### Tracked Managers
+| Manager | Fund | Alpha Score |
+|---------|------|-------------|
+| Druckenmiller | Duquesne | 0.9 — copy immediately |
+| Tepper | Appaloosa | 0.8 |
+| Burry | Scion Capital | 0.8 |
+| Buffett | Berkshire Hathaway | 0.7 |
+| Ackman | Pershing Square | 0.75 |
+| Cohen | Point72 | 0.7 |
+| Dalio | Bridgewater | 0.6 |
+| Halvorsen | Viking Global | 0.7 |
+| Loeb | Third Point | 0.65 |
+| Coleman | Tiger Global | 0.65 |
 
-### Framework Gap Closures (vs. [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents))
-
-| Gap | File | Description |
-|-----|------|-------------|
-| Gap 1 | `tradingagents/memory/situation_memory.py` | Persistent BM25 memory (JSON, 500 entries) |
-| Gap 2 | `scripts/reflect_on_trade.py` | Post-trade reflection loop — LLM learns from outcomes |
-| Gap 3 | `tradingagents/agents/managers/research_synthesizer.py` | Research Manager synthesis layer |
-| Gap 4 | `tradingagents/graph/debate_engine.py` | Multi-round Bull/Bear debate engine |
-| Gap 5 | `tradingagents/graph/signal_processor.py` | Signal extraction + standardized card formatting |
+### Tracked Politicians
+| Name | Chamber | Alpha Score | Edge |
+|------|---------|-------------|------|
+| Nancy Pelosi | House | 0.95 | Tech options — copy immediately |
+| Tommy Tuberville | Senate | 0.7 | Financials/energy |
+| Dan Crenshaw | House | 0.65 | Defense (LMT/RTX/NOC) |
+| Rand Paul | Senate | 0.6 | Pharma shorts |
 
 ---
 
 ## Trade Execution Rules
 
 ### Entry Thresholds
-| Window | Score | Conviction |
-|--------|-------|-----------|
-| 9:30 AM – 1:00 PM | ≥ 7.0 | ≥ 7 |
-| 1:00 PM – 2:30 PM | ≥ 7.5 | ≥ 8 |
-| After 2:30 PM | ❌ No new entries | — |
+| Window | Min Score | Min Conviction | Notes |
+|--------|-----------|----------------|-------|
+| 9:30 AM – 1:00 PM | 7.0 | 7 | Standard window |
+| 1:00 PM – 2:30 PM | 7.5 | 8 | Raised bar |
+| After 2:30 PM | ❌ | — | No new entries |
+| Extended hours | 7.5 | 8 | Wider spreads = higher bar |
+| News-triggered (TIER 1) | 6.5 | 7 | Catalyst boost applied first |
 
-### Risk Parameters
-- **Stop loss:** -3% | **Take profit:** +8%
+### Risk Management
+- **Stop loss:** -3% trailing | **Take profit:** +8%
 - **Max open positions:** 2
 - **Kelly sizing:** half-Kelly from rolling 30-trade win rate (floor: 1%)
+- **Partial exit:** 50% at +5%, let rest run to +8%
 - **Drawdown halt:** portfolio down 5%+ → no new entries
-- **Guru bonus:** injected before gate check (can push score over threshold)
-
-### Gate Sequence (`trade_gate.py`)
-1. Drawdown state check (`logs/drawdown_state.json`)
-2. Market hours validation
-3. Individual circuit breaker
-4. Earnings proximity filter (warn only)
-5. Correlation filter (max 2 correlated positions)
-6. Kelly position sizing calculation
-7. VWAP advisory (non-blocking)
-8. Guru bonus injection (`logs/guru_signals.json`)
-9. Bracket order execution via Alpaca
+- **Guru bonus:** injected before gate check, can push marginal score over threshold
 
 ---
 
-## Guru Tracker
+## Framework Gap Closures
 
-Monitors 10 top hedge fund managers + 5 politicians for new positions.
+ProTrader closes 5 gaps vs. the upstream [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) framework:
 
-### Hedge Funds
-| Manager | Fund | Alpha |
-|---------|------|-------|
-| Druckenmiller | Duquesne | 0.9 |
-| Tepper | Appaloosa | 0.8 |
-| Burry | Scion | 0.8 |
-| Buffett | Berkshire | 0.7 |
-| Ackman | Pershing Square | 0.75 |
-| Cohen | Point72 | 0.7 |
-| Dalio | Bridgewater | 0.6 |
-| Halvorsen | Viking | 0.7 |
-| Loeb | Third Point | 0.65 |
-| Coleman | Tiger Global | 0.65 |
-
-### Politicians
-| Name | Chamber | Alpha | Notes |
-|------|---------|-------|-------|
-| Nancy Pelosi | House | 0.95 | Tech options — copy immediately |
-| Tommy Tuberville | Senate | 0.7 | Financials/energy |
-| Dan Crenshaw | House | 0.65 | Defense (LMT/RTX/NOC) |
-| Rand Paul | Senate | 0.6 | Pharma shorts |
-
-### Score Bonuses (injected before gate check)
-| Trigger | Bonus |
-|---------|-------|
-| Pelosi / Druckenmiller new position | +0.9 |
-| Tepper / Burry new long | +0.8 |
-| Buffett / Ackman new position | +0.7 |
-| Cohen / Halvorsen new position | +0.7 |
-| Generic congressional buy | +0.4 |
-| Insider cluster buy (3+) | +0.6 |
-| CEO buy $500k+ | +0.7 |
+| # | Gap | File | Description |
+|---|-----|------|-------------|
+| 1 | Persistent Memory | `tradingagents/memory/situation_memory.py` | BM25 retrieval over JSON store (500 entries) |
+| 2 | Post-Trade Reflection | `scripts/reflect_on_trade.py` | LLM reflects on each close, updates memory |
+| 3 | Research Synthesis | `tradingagents/agents/managers/research_synthesizer.py` | Synthesizes Flash+Macro+Pulse before debate |
+| 4 | Multi-Round Debate | `tradingagents/graph/debate_engine.py` | Bull and Bear argue 2 rounds before signal |
+| 5 | Signal Processing | `tradingagents/graph/signal_processor.py` | Standardized extraction + Discord card format |
 
 ---
 
-## Breaking News Monitor
+## Private Member Channels
 
-Runs every 2 minutes, 24/7. Posts to Discord only on fresh, actionable news.
+Each server member gets a private `#{username}-trades` channel with:
+- 🔔 **Personal trade alerts** when Cooper enters a position on their watchlist tickers
+- 💰 **Live quotes** fetched fresh before every response (never stale/cached)
+- 📊 **Portfolio analysis** with rebalancing suggestions
+- 🌊 **Whale alerts** — congressional buys, insider trades matching their tickers
 
-- **Sources:** 20 RSS feeds + Finnhub (10 tickers) with 4-minute dedup window
-- **Hard rule:** Market moves NEVER trigger posts — only fresh news headlines do
-- **Dedup TTL:** 4 hours
-
-### Tier Routing
-| Tier | Trigger | Channels |
-|------|---------|----------|
-| TIER 1 | War / Fed / Hormuz closure | #breaking-news + #war-room + TTS |
-| TIER 2 | Earnings / M&A / FDA / Congressional buy | #breaking-news + #war-room |
-| VIP Guru | Pelosi / Druckenmiller | Both channels |
-| Silent | Nothing actionable | No post |
-
----
-
-## Cron Schedule
-
-### 24/7
-| Job | Schedule |
-|-----|----------|
-| Breaking News Monitor | Every 2 min |
-| Iran Suppressor Refresh | Every 3h (silent) |
-| HQ Member Onboarding | Every 5 min |
-| Trading Private Channels | Every 5 min |
-| Member Prefs Handler | Every 10 min |
-
-### Pre-Market (Weekdays)
-| Job | Time |
-|-----|------|
-| Guru Tracker | 6:00 AM ET |
-| FOMC Monitor | 8:00 AM ET |
-| Sentiment Aggregator | 8:00 AM ET |
-| Short Interest + ETF Flows | 8:00 AM ET (Mon only) |
-| SOFR Monitor | 9:00 AM ET |
-| Economic Calendar | Hourly 9–4 PM ET |
-| Monday War Room Brief | 8:45 AM ET (Mon only) |
-| Market Keep-Awake | 9:20 AM ET |
-| Circuit Breaker Reset | 9:25 AM ET |
-
-### Intraday
-| Job | Time |
-|-----|------|
-| Market Scan | 9:30 AM ET → `full_pipeline_scan.py` |
-| Market Scan | 10:30 AM ET → `full_pipeline_scan.py` |
-| Market Scan | 12:00 PM ET → `full_pipeline_scan.py` |
-| Market Scan | 1:00 PM ET (score ≥7.5) |
-| Market Scan | 2:30 PM ET (score ≥7.5, conv ≥8) |
-| Dark Pool Monitor | Every 30 min 9–4 PM |
-| Drawdown Circuit Breaker | Every 15 min 9–4 PM |
-
-### After-Hours
-| Job | Time |
-|-----|------|
-| Earnings Calendar | 4:00 PM ET |
-| Market Close P&L | 4:05 PM ET |
-| After-Hours Earnings | 4–8 PM ET |
-| Whale Tracker | Every 4h |
-| Overnight Futures | 11 PM / 2 AM / 5 AM ET |
-
-### Weekly
-| Job | Time |
-|-----|------|
-| Sunday Futures Monitor | Sun 6:05 PM ET |
-
----
-
-## Member Private Channels
-
-Private trading channels for each server member. Each member gets:
-- A private `#{username}-trades` channel visible only to them and the owner
-- Real-time trade alerts when Cooper takes a position on their watchlist tickers
-- Personalized responses with live data (never cached/stale prices)
-
-### Preference Commands
+### Setup Commands
 Message your private channel:
 ```
-watchlist: NVDA, AAPL, MSFT    → sets tickers to watch
-risk: conservative              → conservative / moderate / aggressive
+watchlist: NVDA, AAPL, MSFT    → sets tickers to watch for alerts
+risk: moderate                  → conservative / moderate / aggressive sizing
 ```
 
 ---
 
 ## Dashboard
 
-Real-time SSE dashboard at `http://localhost:8002` (5-page SPA):
-- **Portfolio** — P&L, open positions, bracket orders
-- **Signals** — Live signal cards with ASCII charts
-- **Options** — Multi-strategy options engine (9 strategies)
-- **Intelligence** — Guru signals, whale activity, sentiment scores
-- **Backtest** — Historical performance analytics
+Real-time SSE dashboard at `http://localhost:8002` — starts automatically at 9:20 AM.
+
+| Page | Content |
+|------|---------|
+| Portfolio | P&L, open positions, bracket order status, equity curve |
+| Signals | Live signal cards with ASCII price charts |
+| Options | Multi-strategy engine (9 strategies, 3 tabs) |
+| Intelligence | Guru signals, whale activity, sentiment scores, short interest |
+| Backtest | Historical performance, win rate by ticker/time/catalyst |
 
 ---
 
-## Setup
+## Quick Start
 
 ### Prerequisites
 ```bash
-python3 -m pip install -r requirements.txt
+pip install -r requirements.txt
 ```
 
-### Environment Variables (`.env`)
+### Environment (`.env`)
 ```env
 # Required
 ALPACA_API_KEY=your_key
@@ -426,55 +392,51 @@ FINNHUB_API_KEY=your_key
 ALPHA_VANTAGE_KEY=your_key
 POLYGON_API_KEY=your_key
 NEWS_API_KEY=your_key
-
-# Optional (graceful degradation if missing)
-WEBULL_EMAIL=
-WEBULL_PASSWORD=
-WEBULL_TRADING_PIN=
 ```
 
-### Run a Quick Quote
+### Usage Examples
+
 ```bash
+# Get live quotes (always use before answering market questions)
 python3 scripts/quick_quote.py NVDA MSFT AAPL
-```
 
-### Run Full Pipeline Scan
-```bash
+# Run full pipeline scan on a ticker
 python3 scripts/full_pipeline_scan.py --ticker NVDA --rounds 2
-```
 
-### Run Trade Gate (manual test)
-```bash
+# Manual trade gate test
 python3 scripts/trade_gate.py \
-  --ticker NVDA \
-  --action BUY \
-  --score 7.8 \
-  --conviction 8 \
-  --analysis "Strong breakout above VWAP" \
+  --ticker NVDA --action BUY \
+  --score 7.8 --conviction 8 \
+  --analysis "Strong breakout above VWAP on high volume" \
   --scan-time "9:30"
-```
 
-### Start Dashboard
-```bash
-python3 dashboard/server.py
-# Open http://localhost:8002
+# Run ticker news scanner manually
+python3 scripts/ticker_news_scanner.py
+
+# Check account status
+python3 scripts/account_status.py
+
+# Start dashboard
+python3 dashboard/server.py  # → http://localhost:8002
 ```
 
 ---
 
-## Architecture Rules (Inviolable)
+## System Rules (Inviolable)
 
-1. **Market moves NEVER generate Discord posts** — only fresh RSS/Finnhub headlines do
-2. **No web searches from the market moves path** in the breaking news monitor
-3. **`openclaw oracle` does not exist** — use `claude --print --model claude-sonnet-4-6`
+1. **Market moves NEVER generate Discord posts** — only fresh news headlines trigger posts
+2. **No web searches from the market moves path** in breaking news monitor
+3. **`openclaw oracle` does not exist** — use `claude --print --model <model>`
 4. **All scripts:** `REPO = Path(__file__).resolve().parent.parent` before `sys.path.insert`
-5. **Graceful degradation** on all API failures (try/except everywhere)
+5. **Graceful degradation** — every API call wrapped in try/except, system never crashes
 6. **SQLite only** — `sqlite3` stdlib, no new DB dependencies
-7. **Dedup TTL = 4h** | Iran war suppressors refresh every 3h
-8. **Reflection is async** (`Popen`, not `run`) — never blocks `close_position.py`
-9. **Guru bonus injects before gate check** — can legitimately push score over threshold
+7. **Dedup TTL = 4h** — Iran/war suppressors refresh every 3h automatically
+8. **Reflection is async** — `Popen`, not `run` — never blocks position close
+9. **Guru bonus injects before gate** — can legitimately push marginal score over threshold
 10. **Live data always** — never answer market questions from training knowledge
-11. **Member data sealed** — private channel data never crosses channel boundaries
+11. **Member data sealed** — private channel data never referenced in any shared channel
+12. **Session-aware routing** — regular/premarket/afterhours/crypto/futures/closed
+13. **Overnight alerts** — catalysts during closed hours post as pre-position alerts, never silently dropped
 
 ---
 
@@ -484,26 +446,21 @@ python3 dashboard/server.py
 |--------|-------|
 | Starting capital | $100,394 |
 | Target | $1,000,000 |
-| Avg win | 12% |
+| Average win | 12% |
 | Win rate | 65% |
-| Trades needed | ~682 |
-| Scans/day | 5 |
+| Avg trades/day | 1–2 |
 | Trading days/year | 250 |
-| **Estimated timeline** | **< 2 years** |
+| Estimated timeline | **< 2 years** |
 
 ---
 
-## Forked From
+## Built On
 
-[TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) — extended with:
-- 5 framework gap closures (BM25 memory, reflection loop, research synthesis, multi-round debate, signal processor)
-- 12 new intelligence modules
-- Native OpenClaw integration (no separate API keys)
-- Private member channel system
-- 24/7 breaking news monitor
-- Guru tracker (hedge funds + politicians)
-- Full SSE real-time dashboard
+- [OpenClaw](https://openclaw.ai) — agent orchestration, cron scheduling, Discord integration
+- [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) — base framework (5 gaps closed)
+- [Alpaca Markets](https://alpaca.markets) — paper + live trade execution
+- [Finnhub](https://finnhub.io) — real-time financial data
 
 ---
 
-*Built with [OpenClaw](https://openclaw.ai) | Cooper 🦅 | Last updated: 2026-03-01*
+*🦅 Cooper | ProTrader | Last updated: 2026-03-01*
