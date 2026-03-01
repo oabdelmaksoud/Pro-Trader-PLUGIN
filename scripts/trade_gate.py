@@ -9,6 +9,7 @@ Usage:
   python3 scripts/trade_gate.py --ticker NVDA --action PASS --score 6.2 --conviction 5 --analysis "Below threshold" --scan-time "9:30"
 """
 import argparse
+import json
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -77,6 +78,36 @@ def main():
         signal["target"] = round(price * (1 + args.target_pct), 2)
     except Exception as e:
         print(f"WARN: Could not get price for {args.ticker}: {e}")
+
+    # Guru bonus injection (from guru_tracker.py signals)
+    guru_bonus = 0.0
+    try:
+        guru_signals_path = REPO / "logs" / "guru_signals.json"
+        if guru_signals_path.exists():
+            guru_signals = json.loads(guru_signals_path.read_text())
+            if args.ticker in guru_signals:
+                guru_bonus = float(guru_signals[args.ticker].get("guru_bonus", 0))
+                reasons = guru_signals[args.ticker].get("reasons", [])
+                if guru_bonus > 0:
+                    print(f"GURU BONUS: +{guru_bonus} for {args.ticker} — {reasons[-1] if reasons else 'guru signal'}")
+                    args.score = min(10.0, args.score + guru_bonus)
+                    signal["score"] = args.score
+                    signal["analysis_summary"] += f" | Guru bonus +{guru_bonus}"
+    except Exception as e:
+        print(f"WARN: Could not load guru signals: {e}")
+
+    # Drawdown circuit breaker check
+    try:
+        drawdown_path = REPO / "logs" / "drawdown_state.json"
+        if drawdown_path.exists():
+            dd = json.loads(drawdown_path.read_text())
+            if dd.get("halted"):
+                signal["skip_reason"] = f"Portfolio drawdown circuit breaker active (down {dd.get('drawdown_pct','?')}%)"
+                logger.log_signal(signal)
+                print(f"SKIP: Drawdown circuit breaker halted new entries")
+                return
+    except Exception as e:
+        print(f"WARN: Could not check drawdown state: {e}")
 
     if args.action in ("PASS", "HOLD"):
         signal["skip_reason"] = f"Score {args.score}/10 below threshold or conviction {args.conviction}/10 below minimum"

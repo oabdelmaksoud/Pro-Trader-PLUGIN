@@ -1,0 +1,191 @@
+{
+  "hedge_funds": [
+    {
+      "id": "bridgewater",
+      "name": "Bridgewater Associates",
+      "manager": "Ray Dalio",
+      "strategy": "All-weather, global macro",
+      "aum_b": 124,
+      "key_sectors": ["GLD", "EEM", "SPY", "TLT", "VWO"],
+      "alpha_score": 0.6,
+      "notes": "Follows macro regimes. GLD/bonds when inflation rises. Follows All-Weather model.",
+      "sec_cik": "1350694",
+      "13f_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=1350694&type=13F&dateb=&owner=include&count=10"
+    },
+    {
+      "id": "pershing",
+      "name": "Pershing Square Capital",
+      "manager": "Bill Ackman",
+      "strategy": "Activist, concentrated long/short",
+      "aum_b": 16,
+      "key_sectors": ["CMG", "HLT", "LOW", "QSR"],
+      "alpha_score": 0.75,
+      "notes": "Concentrates in 8-10 positions. Famous macro hedges (CDS, CDX). Watch for public letters.",
+      "sec_cik": "1336528",
+      "13f_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=1336528&type=13F&dateb=&owner=include&count=10"
+    },
+    {
+      "id": "appaloosa",
+      "name": "Appaloosa Management",
+      "manager": "David Tepper",
+      "strategy": "Distressed debt + macro equity",
+      "aum_b": 14,
+      "key_sectors": ["META", "GOOGL", "AMZN", "MSFT", "BABA"],
+      "alpha_score": 0.8,
+      "notes": "Tepper is a macro genius. His public comments move markets. Heavily in Mag-7.",
+      "sec_cik": "1656456",
+      "13f_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=1656456&type=13F&dateb=&owner=include&count=10"
+    },
+    {
+      "id": "berkshire",
+      "name": "Berkshire Hathaway",
+      "manager": "Warren Buffett",
+      "strategy": "Value, long-term compounding",
+      "aum_b": 300,
+      "key_sectors": ["AAPL", "BAC", "OXY", "KO", "AXP", "CVX"],
+      "alpha_score": 0.7,
+      "notes": "Buffett buys OXY when oil is cheap. AAPL is 45% of portfolio. Tracks energy + financials.",
+      "sec_cik": "1067294",
+      "13f_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=1067294&type=13F&dateb=&owner=include&count=10"
+    },
+    {
+      "id": "duquesne",
+      "name": "Duquesne Family Office",
+      "manager": "Stanley Druckenmiller",
+      "strategy": "Global macro, high conviction",
+      "aum_b": 3,
+      "key_sectors": ["NVDA", "GLD", "MSFT", "GOOGL"],
+      "alpha_score": 0.9,
+      "notes": "Druckenmiller has the best long-term track record of any macro trader. Copy immediately.",
+      "sec_cik": "1536411",
+      "13f_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=1536411&type=13F&dateb=&owner=include&count=10"
+    },
+    {
+      "id": "third_point",
+      "name": "Third Point LLC",
+      "manager": "Dan Loeb",
+      "strategy": "Activist, event-driven",
+      "aum_b": 11,
+      "key_sectors": ["AMZN", "META", "MSFT", "PFE"],
+      "alpha_score": 0.65,
+      "notes": "Activist letters are market-moving. Targets undervalued large-caps with catalysts.",
+      "sec_cik": "1040570",
+      "13f_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=1040570&type=13F&dateb=&owner=include&count=10"
+    },
+    {
+      "id": "tiger_global",
+      "name": "Tiger Global Management",
+      "manager": "Chase Coleman",
+      "strategy": "Long/short growth tech",
+      "aum_b": 35,
+      "key_sectors": ["NVDA", "MSFT", "META", "GOOGL", "AMZN"],
+      "alpha_score": 0.65,
+      "notes": "Tech-heavy. Mega-cap AI names. Tracks secular growth over cycles.",
+      "sec_cik": "1167483",
+      "13f_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=1167483&type=13F&dateb=&owner=include&count=10"
+    },
+    {
+      "id": "viking",
+      "name": "Viking Global Investors",
+      "manager": "Andreas Halvorsen",
+      "strategy": "Long/short equity",
+      "aum_b": 46,
+      "key_sectors": ["MSFT", "NVDA", "META", "GOOGL"],
+      "alpha_score": 0.7,
+      "notes": "Tiger Cub. Concentrates in tech leaders. 13F is a strong signal.",
+      "sec_cik": "1103804",
+      "13f_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=1103804&type=13F&dateb=&owner=include&count=10"
+    },
+    {
+      "id": "scion",
+      "name": "Scion Asset Management",
+      "manager": "Michael Burry",
+      "strategy": "Deep value, contrarian macro",
+      "aum_b": 0.3,
+      "key_sectors": ["puts", "BABA", "JD"],
+      "alpha_score": 0.8,
+      "notes": "The Big Short. Concentrates in 5-10 positions. Bearish macro calls. Watch put positions.",
+      "sec_cik": "1336232",
+      "13f_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=1336232&type=13F&dateb=&owner=include&count=10"
+    },
+    {
+      "id": "point72",
+      "name": "Point72 Asset Management",
+      "manager": "Steve Cohen",
+      "strategy": "Multi-strat, discretionary + quant",
+      "aum_b": 35,
+      "key_sectors": ["NVDA", "MSFT", "AAPL", "AMZN"],
+      "alpha_score": 0.7,
+      "notes": "SAC successor. Fast-moving, sector-agnostic. Option flow often precedes 13F.",
+      "sec_cik": "1603466",
+      "13f_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=1603466&type=13F&dateb=&owner=include&count=10"
+    }
+  ],
+  "politicians": [
+    {
+      "id": "pelosi_nancy",
+      "name": "Nancy Pelosi",
+      "chamber": "House",
+      "party": "Democrat",
+      "state": "CA",
+      "alpha_score": 0.95,
+      "known_trades": ["NVDA calls", "MSFT", "GOOGL", "Roblox", "Apple"],
+      "notes": "Highest alpha of any politician. Husband Paul Pelosi files for her. Copy immediately. Historically buys growth/tech.",
+      "stock_watcher_id": "Nancy Pelosi"
+    },
+    {
+      "id": "tuberville_tommy",
+      "name": "Tommy Tuberville",
+      "chamber": "Senate",
+      "party": "Republican",
+      "state": "AL",
+      "alpha_score": 0.7,
+      "known_trades": ["financials", "energy", "defense"],
+      "notes": "Frequent trader. Financial sector focus. Army STOCK Act violator — but consistent winner.",
+      "stock_watcher_id": "Tommy Tuberville"
+    },
+    {
+      "id": "crenshaw_dan",
+      "name": "Dan Crenshaw",
+      "chamber": "House",
+      "party": "Republican",
+      "state": "TX",
+      "alpha_score": 0.65,
+      "known_trades": ["LMT", "RTX", "NOC", "defense ETFs"],
+      "notes": "Veterans Affairs + defense committee. Defense stock trades are alpha.",
+      "stock_watcher_id": "Dan Crenshaw"
+    },
+    {
+      "id": "paul_rand",
+      "name": "Rand Paul",
+      "chamber": "Senate",
+      "party": "Republican",
+      "state": "KY",
+      "alpha_score": 0.6,
+      "known_trades": ["PFE puts (COVID)", "pharma shorts"],
+      "notes": "Famous COVID put trade on Gilead/Pfizer. Contrarian healthcare plays.",
+      "stock_watcher_id": "Rand Paul"
+    },
+    {
+      "id": "congress_generic_buy",
+      "name": "Any Congressman (Purchase)",
+      "chamber": "Both",
+      "party": "Any",
+      "alpha_score": 0.55,
+      "notes": "Generic congressional buy = +0.4 score bonus. They have information advantages.",
+      "stock_watcher_id": null
+    }
+  ],
+  "score_bonuses": {
+    "druckenmiller_new_position": 0.9,
+    "pelosi_purchase": 0.9,
+    "buffett_new_position": 0.7,
+    "tepper_new_position": 0.8,
+    "burry_new_long": 0.8,
+    "ackman_new_position": 0.7,
+    "congressional_purchase_generic": 0.4,
+    "insider_cluster_buy_3plus": 0.6,
+    "insider_ceo_buy_500k_plus": 0.7,
+    "three_funds_added_same_quarter": 0.6
+  }
+}
