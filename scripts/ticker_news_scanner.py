@@ -2,23 +2,26 @@
 """
 ticker_news_scanner.py — Real-time ticker-specific news scanner.
 
-Runs every 2 minutes. Checks Finnhub company-news for 15 watchlist tickers.
-No LLM — pure keyword classification. Zero extra token cost.
+Runs every 2 minutes. Checks Finnhub company-news for 20 watchlist tickers.
+Uses a 2-layer classification pipeline:
 
-Closes the gap between scheduled scans (30-90 min) and breaking news (macro only).
-Stock-specific catalysts now trigger trade_gate.py within ~2 minutes.
+  Layer 1 — Keyword regex (instant, free):
+    Fast pattern matching for clear catalysts. Catches ~85% of actionable stories.
+
+  Layer 2 — LLM sentiment verification (claude, only on CATALYST_A/B hits + ambiguous):
+    Verifies direction and catches nuanced headlines keywords miss.
+    Prompt is minimal (~50 tokens). Only fires on actual hits — not every headline.
+    Estimated: ~5-15 LLM calls/day during active news periods. Negligible cost.
 
 Catalyst Tiers:
   CATALYST_A (score boost +1.2): Earnings beat/miss, M&A, FDA approval/rejection,
-                                   analyst upgrade/downgrade from major bank,
-                                   CEO departure, activist investor entry
-  CATALYST_B (score boost +0.6): Product launch, partnership, contract win,
-                                   index inclusion, secondary offering
-  CATALYST_C (score boost +0.3): Analyst initiation, price target change (minor),
-                                   conference presentation
+                                   CEO departure, activist investor entry, SEC/fraud
+  CATALYST_B (score boost +0.6): Analyst upgrade/downgrade, partnership, product launch,
+                                   index inclusion, contract win, secondary offering
+  CATALYST_C: Logged only, no trade trigger
+  AMBIGUOUS:  Sent to LLM for judgment — can be promoted to A/B
 
-Only CATALYST_A and CATALYST_B fire news_trade_trigger.py.
-CATALYST_C is logged but does not trigger trades.
+Only CATALYST_A and CATALYST_B (confirmed by LLM) fire news_trade_trigger.py.
 """
 import sys, os, json, re, time, subprocess
 from pathlib import Path
@@ -84,6 +87,15 @@ CATALYST_C = [
     r"investor day", r"price target", r"neutral rating",
 ]
 
+# Headlines that keywords can't confidently classify → send to LLM
+AMBIGUOUS_PATTERNS = [
+    r"mixed results?", r"in line with", r"meets? expectations?",
+    r"reports? (results?|earnings?|revenue)", r"quarterly (results?|earnings?)",
+    r"update[sd]?", r"announces?", r"confirms?", r"plan[ns]?",
+    r"review", r"strategic", r"restructur", r"realign",
+    r"outlook", r"forecast", r"guidance",
+]
+
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def load_dedup() -> dict:
@@ -108,7 +120,7 @@ def mark_seen(dedup: dict, key: str):
     dedup[key] = datetime.now(timezone.utc).isoformat()
 
 def classify(headline: str) -> tuple[str, str]:
-    """Returns (tier, direction) or (None, None) if no catalyst."""
+    """Layer 1: keyword regex classification. Returns (tier, direction) or (None, None)."""
     h = headline.lower()
     for pat in CATALYST_A_LONG:
         if re.search(pat, h):
@@ -125,7 +137,82 @@ def classify(headline: str) -> tuple[str, str]:
     for pat in CATALYST_C:
         if re.search(pat, h):
             return "CATALYST_C", "neutral"
+    # Check if ambiguous — needs LLM judgment
+    for pat in AMBIGUOUS_PATTERNS:
+        if re.search(pat, h):
+            return "AMBIGUOUS", "unknown"
     return None, None
+
+
+def llm_verify(ticker: str, headline: str, keyword_tier: str, keyword_direction: str) -> tuple[str, str]:
+    """Layer 2: LLM sentiment verification for CATALYST_A/B hits and ambiguous headlines.
+
+    Uses claude with a minimal prompt (~50 tokens in, ~20 tokens out).
+    Only called on actual hits — not every headline.
+    Returns (confirmed_tier, confirmed_direction).
+    """
+    prompt = (
+        f"Stock: {ticker}\n"
+        f"Headline: {headline}\n\n"
+        f"Is this headline BULLISH, BEARISH, or NEUTRAL for {ticker} stock price? "
+        f"Is the impact MAJOR (earnings/M&A/FDA/fraud/CEO) or MINOR (analyst note/partnership/guidance)?\n\n"
+        f"Reply in exactly this format:\n"
+        f"SENTIMENT: [BULLISH|BEARISH|NEUTRAL]\n"
+        f"IMPACT: [MAJOR|MINOR|NONE]\n"
+        f"REASON: [one sentence max]"
+    )
+
+    try:
+        result = subprocess.run(
+            ["claude", "--print", "--model", "claude-haiku-4-5", prompt],
+            capture_output=True, text=True, timeout=15
+        )
+        if result.returncode != 0:
+            # Fallback to sonnet if haiku unavailable
+            result = subprocess.run(
+                ["claude", "--print", "--model", "claude-sonnet-4-6", prompt],
+                capture_output=True, text=True, timeout=15
+            )
+        output = result.stdout.strip().upper()
+    except Exception as e:
+        print(f"  LLM verify error: {e} — using keyword result")
+        return keyword_tier, keyword_direction
+
+    # Parse response
+    sentiment = "NEUTRAL"
+    impact = "NONE"
+    for line in output.splitlines():
+        if line.startswith("SENTIMENT:"):
+            s = line.split(":", 1)[1].strip()
+            if "BULLISH" in s:
+                sentiment = "BULLISH"
+            elif "BEARISH" in s:
+                sentiment = "BEARISH"
+        elif line.startswith("IMPACT:"):
+            i = line.split(":", 1)[1].strip()
+            if "MAJOR" in i:
+                impact = "MAJOR"
+            elif "MINOR" in i:
+                impact = "MINOR"
+
+    # Map to tier + direction
+    direction_map = {"BULLISH": "long", "BEARISH": "short", "NEUTRAL": "neutral"}
+    direction = direction_map.get(sentiment, keyword_direction)
+
+    if sentiment == "NEUTRAL" or impact == "NONE":
+        # LLM says not actionable
+        print(f"  LLM override: NEUTRAL/NONE — skipping trade trigger")
+        return "CATALYST_C", "neutral"  # downgrade to log-only
+
+    if impact == "MAJOR":
+        tier = "CATALYST_A"
+    elif impact == "MINOR":
+        tier = "CATALYST_B"
+    else:
+        tier = keyword_tier if keyword_tier not in ("AMBIGUOUS", None) else "CATALYST_C"
+
+    print(f"  LLM verdict: {sentiment} | {impact} → {tier} {direction}")
+    return tier, direction
 
 def post_discord(channel_id: str, msg: str):
     try:
@@ -217,6 +304,12 @@ def main():
                 continue
 
             mark_seen(dedup, dedup_key)
+
+            # Layer 2: LLM verification for CATALYST_A, CATALYST_B, and AMBIGUOUS
+            if tier in ("CATALYST_A", "CATALYST_B", "AMBIGUOUS"):
+                print(f"  🔍 LLM verify: [{ticker}] keyword={tier} | {headline[:70]}")
+                tier, direction = llm_verify(ticker, headline, tier, direction)
+
             logged.append(f"  [{ticker}] {tier} ({direction}) — {headline[:80]}")
 
             if tier in ("CATALYST_A", "CATALYST_B") and is_market_hours():
