@@ -223,6 +223,14 @@ def main():
         _sp.Popen(_reflect_cmd, cwd=str(REPO))
         print(f"Reflection spawned for {args.ticker} (async)")
 
+        # Update rolling Kelly fraction from signal DB (async, non-blocking)
+        try:
+            _calibrate_cmd = ["python3", str(REPO / "tradingagents" / "graph" / "position_calibrator.py")]
+            _sp.Popen(_calibrate_cmd, cwd=str(REPO))
+            print("Kelly calibration spawned (async)")
+        except Exception as _ce:
+            print(f"WARN: Kelly calibration spawn failed (non-fatal): {_ce}")
+
         for _suf in [".score", ".conviction"]:
             _f = REPO / "logs" / "open_trades" / f"{args.ticker}{_suf}"
             if _f.exists():

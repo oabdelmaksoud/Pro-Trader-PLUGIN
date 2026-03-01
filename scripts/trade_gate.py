@@ -15,9 +15,10 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO))
 from dotenv import load_dotenv
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(REPO / ".env")
 
 from tradingagents.brokers.alpaca import AlpacaBroker
 from tradingagents.risk.circuit_breaker import CircuitBreaker
