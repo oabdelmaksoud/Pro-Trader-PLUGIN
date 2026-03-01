@@ -29,6 +29,56 @@ from dotenv import load_dotenv
 load_dotenv(REPO / ".env")
 
 
+def load_intelligence_context(repo: Path, ticker: str) -> dict:
+    """Load pre-computed intelligence bonuses from daily scanners."""
+    bonuses = {"score_bonus": 0.0, "reasons": []}
+
+    # Guru signals (from guru_tracker.py)
+    try:
+        path = repo / "logs" / "guru_signals.json"
+        if path.exists():
+            data = json.loads(path.read_text())
+            if ticker in data:
+                bonus = float(data[ticker].get("guru_bonus", 0))
+                if bonus > 0:
+                    bonuses["score_bonus"] += bonus
+                    reasons = data[ticker].get("reasons", [])
+                    bonuses["reasons"].append(f"Guru bonus +{bonus}: {reasons[-1] if reasons else 'signal'}")
+    except Exception as e:
+        print(f"WARN: guru_signals load failed: {e}")
+
+    # Sentiment scores (from sentiment_aggregator.py)
+    try:
+        path = repo / "logs" / "sentiment_scores.json"
+        if path.exists():
+            data = json.loads(path.read_text())
+            if ticker in data:
+                sentiment = float(data[ticker].get("score", 0))
+                if sentiment > 0.5:
+                    bonuses["score_bonus"] += 0.3
+                    bonuses["reasons"].append(f"Bullish sentiment +0.3 (score={sentiment:.2f})")
+                elif sentiment < -0.5:
+                    bonuses["score_bonus"] -= 0.3
+                    bonuses["reasons"].append(f"Bearish sentiment -0.3 (score={sentiment:.2f})")
+    except Exception as e:
+        print(f"WARN: sentiment_scores load failed: {e}")
+
+    # Short interest squeeze bonus (from short_interest.py)
+    try:
+        path = repo / "logs" / "short_interest.json"
+        if path.exists():
+            data = json.loads(path.read_text())
+            if ticker in data:
+                short_float = float(str(data[ticker].get("short_float", "0")).replace("%", ""))
+                if short_float > 20:
+                    bonuses["score_bonus"] += 0.5
+                    bonuses["reasons"].append(f"Squeeze setup +0.5 (short float={short_float:.1f}%)")
+    except Exception as e:
+        print(f"WARN: short_interest load failed: {e}")
+
+    return bonuses
+
+
 def run_agent(agent_id: str, prompt: str, timeout: int = 90) -> str:
     """Run an agent via openclaw oracle and return its output."""
     result = subprocess.run(
@@ -214,6 +264,15 @@ def main():
     direction = signal["direction"]
     confidence = signal["confidence"]
     print(f"   Direction: {direction} | Score: {final_score:.1f} | Confidence: {confidence}/10")
+
+    # Intelligence bonus injection (guru signals + sentiment + short interest)
+    intel = load_intelligence_context(REPO, ticker)
+    if intel["score_bonus"] != 0:
+        final_score = min(10.0, final_score + intel["score_bonus"])
+        signal["score"] = final_score
+        print(f"Intelligence bonus: {intel['score_bonus']:+.1f} → adjusted score: {final_score:.1f}")
+        for reason in intel["reasons"]:
+            print(f"  {reason}")
     print(f"   {signal['card']}")
 
     # Decision

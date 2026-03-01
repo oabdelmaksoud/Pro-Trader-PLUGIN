@@ -237,6 +237,33 @@ def main():
         signal["skip_reason"] = None
         logger.log_signal(signal)
 
+        # Notify members with ticker in their personal watchlist
+        try:
+            member_prefs_path = REPO / "logs" / "member_prefs.json"
+            if member_prefs_path.exists():
+                member_prefs = json.loads(member_prefs_path.read_text())
+                for uid, pdata in member_prefs.items():
+                    watchlist = pdata.get("watchlist", [])
+                    ch_id = pdata.get("channel_id", "")
+                    if args.ticker in watchlist and ch_id:
+                        risk = pdata.get("risk", "moderate")
+                        personal_msg = (
+                            f"🔔 SIGNAL ON YOUR WATCHLIST — {args.ticker}\n"
+                            f"📊 Score: {args.score}/10 | Conviction: {args.conviction}/10\n"
+                            f"💰 Entry: ~${signal['price_at_signal']:.2f} | Stop: ${signal['stop_loss']:.2f} (-3%) | Target: ${signal['target']:.2f} (+8%)\n"
+                            f"⚙️ Risk profile: {risk}\n"
+                            f"— Cooper 🦅 | Personal Alert"
+                        )
+                        import subprocess as _sub
+                        _sub.run(
+                            ["openclaw", "message", "send", "--channel", "discord",
+                             "--target", ch_id, "--message", personal_msg],
+                            capture_output=True, timeout=10
+                        )
+                        print(f"Personal alert sent to {pdata.get('username', uid)}")
+        except Exception as e:
+            print(f"WARN: Personal alert failed (non-fatal): {e}")
+
         # Log to signal DB
         try:
             from tradingagents.db.signal_db import log_signal as db_log_signal, mark_entered
