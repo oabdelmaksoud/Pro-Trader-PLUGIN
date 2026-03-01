@@ -18,32 +18,146 @@ ProTrader is a fully autonomous 7-agent trading pipeline built on [OpenClaw](htt
 
 ## Architecture
 
+### Full Trading Pipeline
+
+```mermaid
+flowchart TD
+    CRON["⏰ Cron Scheduler\n5× daily + 24/7 monitors"] --> COOPER["🦅 Cooper\nOrchestrator"]
+
+    COOPER --> DATA["📊 get_market_data.py\n15+ sources · no LLM · pure data"]
+    COOPER --> GURU["🧠 guru_tracker.py\n13F + STOCK Act → score bonuses"]
+
+    DATA --> PIPELINE["🔄 full_pipeline_scan.py"]
+    GURU --> SIGNALS["logs/guru_signals.json"]
+
+    PIPELINE --> FLASH["📈 Flash\nTechnical Analysis"]
+    PIPELINE --> MACRO["🌍 Macro\nFundamentals + News"]
+    PIPELINE --> PULSE["💬 Pulse\nSentiment + Options Flow"]
+
+    FLASH --> SYNTH["🔮 research_synthesizer.py\nResearch Manager · Gap 3"]
+    MACRO --> SYNTH
+    PULSE --> SYNTH
+
+    SYNTH --> BM25["🧩 situation_memory.py\nBM25 Memory Lookup · Gap 1"]
+    BM25 --> DEBATE["⚔️ Bull 🐂 vs Bear 🐻\nMulti-Round Debate · Gap 4"]
+    DEBATE --> SIGPROC["⚡ signal_processor.py\nSignal Extraction · Gap 5"]
+
+    SIGPROC --> INTEL["📦 load_intelligence_context\nguru + sentiment + short interest bonuses"]
+    SIGNALS --> INTEL
+
+    INTEL --> GATE["🚦 trade_gate.py\nGates 1-5 + Kelly + Drawdown"]
+
+    GATE -->|score ≥ 7.0| ORDER["📋 Alpaca Bracket Order\nstop -3% · target +8%"]
+    GATE -->|score < 7.0| SKIP["⏭️ Skip — No Trade"]
+
+    ORDER --> CLOSE["🔒 close_position.py\noutcome logging + sidecars"]
+    CLOSE --> REFLECT["🪞 reflect_on_trade.py\nPost-Trade Reflection · Gap 2\nasync · non-blocking"]
+    CLOSE --> CALIBRATE["📐 position_calibrator.py\nRolling Kelly Update\nasync · non-blocking"]
+
+    REFLECT --> MEMORY["💾 situation_memory.json\nBM25 store · 500 entries"]
+    CALIBRATE --> KELLY["📁 logs/kelly_params.json"]
+
+    style COOPER fill:#1a1a2e,color:#fff
+    style GATE fill:#16213e,color:#fff
+    style DEBATE fill:#0f3460,color:#fff
+    style ORDER fill:#533483,color:#fff
 ```
-Cron (5× daily) → Cooper 🦅
-  │
-  ├── get_market_data.py        # 15+ sources, no LLM, pure data
-  ├── guru_tracker.py           # 13F + STOCK Act → score bonuses
-  │
-  └── full_pipeline_scan.py
-        ├── Flash 📈            # Technical analysis (parallel)
-        ├── Macro 🌍            # Fundamentals + news (parallel)
-        ├── Pulse 💬            # Sentiment + options flow (parallel)
-        ├── situation_memory    # BM25 memory lookup (Gap 1)
-        ├── research_synthesizer # Synthesis (Gap 3)
-        ├── Bull 🐂 ↔ Bear 🐻  # Multi-round debate (Gap 4)
-        ├── signal_processor    # Signal extraction (Gap 5)
-        └── load_intelligence_context()
-              ├── guru_signals.json
-              ├── sentiment_scores.json
-              └── short_interest.json
-                    │
-                    └── trade_gate.py  # Gates 1-5 + Kelly + drawdown
-                          │
-                          └── Alpaca Bracket Order
-                                │
-                                └── close_position.py
-                                      ├── reflect_on_trade.py  (async, Gap 2)
-                                      └── position_calibrator.py (async)
+
+---
+
+### Trade Gate Sequence
+
+```mermaid
+sequenceDiagram
+    participant S as full_pipeline_scan
+    participant G as trade_gate.py
+    participant CB as Circuit Breaker
+    participant K as Kelly Sizer
+    participant A as Alpaca API
+    participant D as Discord
+
+    S->>G: score=7.8, conviction=8, ticker=NVDA
+    G->>G: ① Drawdown state check (logs/drawdown_state.json)
+    G->>G: ② Market hours validation (9:30–2:30 PM ET)
+    G->>CB: ③ Individual circuit breaker check
+    CB-->>G: ✅ OK
+    G->>G: ④ Earnings proximity filter (skip if <1 day)
+    G->>G: ⑤ Correlation filter (max 2 correlated)
+    G->>K: ⑥ Kelly sizing (half-Kelly · rolling win rate)
+    K-->>G: position_size = 4.2%
+    G->>G: ⑦ VWAP advisory (non-blocking)
+    G->>G: ⑧ Guru bonus injection (+0.9 if Pelosi/Druckenmiller)
+    G->>A: ⑨ Submit bracket order (entry + stop + target)
+    A-->>G: order_id confirmed
+    G->>D: 📊 Signal card → #paper-trades
+    G->>G: Write .score .conviction .signal_id sidecars
+```
+
+---
+
+### System Monitors (24/7)
+
+```mermaid
+graph LR
+    subgraph "24/7 Continuous"
+        BN["📡 Breaking News\nevery 2 min"] --> BNCH["#breaking-news\n#war-room"]
+        IS["🏛️ Iran Suppressor Refresh\nevery 3h"] --> DEDUP["dedup cache"]
+        OB["👥 Member Onboarding\nevery 5 min"] --> PC["Private Channels"]
+        MP["⚙️ Member Prefs\nevery 10 min"] --> PREFS["member_prefs.json"]
+    end
+
+    subgraph "Pre-Market 6–9:30 AM ET"
+        GT["🧠 Guru Tracker\n6 AM Mon–Fri"]
+        SA["💬 Sentiment\n8 AM Daily"]
+        FOMC["🏦 FOMC Monitor\n8 AM Daily"]
+        SI["📉 Short Interest\n8 AM Monday"]
+        WRB["🦅 War Room Brief\n8:45 AM Monday"]
+    end
+
+    subgraph "Market Hours 9:30 AM–4 PM ET"
+        S1["📊 Scan 9:30 AM\nfull_pipeline_scan"] --> TG["trade_gate"]
+        S2["📊 Scan 10:30 AM\nfull_pipeline_scan"] --> TG
+        S3["📊 Scan 12:00 PM\nfull_pipeline_scan"] --> TG
+        S4["📊 Scan 1:00 PM\nscore ≥7.5"] --> TG
+        S5["📊 Scan 2:30 PM\nlast window"] --> TG
+        DP["🌊 Dark Pool\nevery 30 min"]
+        DCB["🛑 Drawdown CB\nevery 15 min"]
+    end
+
+    subgraph "After Hours"
+        EC["📅 Earnings Calendar\n4 PM Daily"]
+        PNL["💰 P&L Snapshot\n4:05 PM Daily"]
+        AHE["📈 AH Earnings\n4–8 PM"]
+        WT["🐋 Whale Tracker\nevery 4h"]
+        OF["🌙 Overnight Futures\n11 PM / 2 AM / 5 AM"]
+    end
+```
+
+---
+
+### Intelligence Score Composition
+
+```mermaid
+graph TD
+    BASE["Base Score\nFlash + Macro + Pulse analysis\n0–10 scale"] --> DEBATE["Bull vs Bear Debate\n±0.5 adjustment"]
+    DEBATE --> INTEL["Intelligence Bonuses"]
+    
+    GURU2["🧠 Guru Signal\nPelosi/Druckenmiller: +0.9\nTepper/Burry: +0.8\nBuffett/Ackman: +0.7\nCEO buy $500k+: +0.7\nCongressional: +0.4"]
+    SENT["💬 Sentiment Score\nbullish >0.5: +0.3\nbearish <-0.5: -0.3"]
+    SHORT["📉 Short Interest\nfloat >20%: +0.5\n(squeeze setup)"]
+    
+    GURU2 --> INTEL
+    SENT --> INTEL
+    SHORT --> INTEL
+    
+    INTEL --> FINAL["Final Score\ncapped at 10.0"]
+    
+    FINAL -->|"≥7.0 (9:30–1 PM)"| ENTER["✅ Enter Trade"]
+    FINAL -->|"≥7.5 (1–2:30 PM)"| ENTER
+    FINAL -->|"< threshold"| PASS["⏭️ Pass"]
+
+    style ENTER fill:#27ae60,color:#fff
+    style PASS fill:#e74c3c,color:#fff
 ```
 
 ---
