@@ -47,7 +47,29 @@ def load_profiles():
         return json.loads(PROFILES_FILE.read_text())
     except Exception as e:
         print(f"[profiles] Error loading: {e}")
-        return {"hedge_funds": [], "politicians": [], "score_bonuses": {}}
+        return {"hedge_funds": [], "politicians": [], "action_multipliers": {}, "alpha_tiers": {}}
+
+
+def compute_bonus(alpha_score: float, action: str, profiles: dict) -> float:
+    """
+    Compute score bonus dynamically from alpha_score + action_multiplier.
+    Formula: bonus = alpha_score * action_multiplier, capped at 0.95.
+    No hardcoded names — add any manager with an alpha_score and bonuses auto-derive.
+    """
+    multipliers = profiles.get("action_multipliers", {})
+    multiplier = multipliers.get(action, 0.75)  # default: 0.75 for unknown actions
+    bonus = round(alpha_score * multiplier, 2)
+    return min(0.95, max(0.0, bonus))
+
+
+def get_alpha_tier(alpha_score: float, profiles: dict) -> dict:
+    """Return tier metadata for a given alpha score."""
+    tiers = profiles.get("alpha_tiers", {})
+    for tier_name in ("elite", "high", "mid", "low"):
+        t = tiers.get(tier_name, {})
+        if alpha_score >= t.get("min", 0):
+            return {"tier": tier_name, **t}
+    return {"tier": "low", "label": "Low alpha", "vip": False}
 
 
 def load_cache():
@@ -97,7 +119,9 @@ def check_political_trades(profiles, cache, signals):
     alerts = []
     politicians = {p["stock_watcher_id"]: p for p in profiles.get("politicians", [])
                    if p.get("stock_watcher_id")}
-    score_bonuses = profiles.get("score_bonuses", {})
+    # Generic congressional alpha: find the catch-all entry
+    generic_pol = next((p for p in profiles.get("politicians", []) if p.get("id") == "congress_generic_buy"), {})
+    generic_alpha = generic_pol.get("alpha_score", 0.55)
     cutoff = datetime.now(timezone.utc) - timedelta(days=7)
 
     sources = [
@@ -148,13 +172,12 @@ def check_political_trades(profiles, cache, signals):
                         vip_data = p_data
                         break
 
-                # Score bonus
-                bonus = score_bonuses.get("congressional_purchase_generic", 0.4)
+                # Score bonus — formula-driven: alpha_score * action_multiplier
                 if vip_data:
-                    if "pelosi" in name.lower():
-                        bonus = score_bonuses.get("pelosi_purchase", 0.9)
-                    else:
-                        bonus = vip_data.get("alpha_score", 0.6)
+                    bonus = compute_bonus(vip_data.get("alpha_score", generic_alpha),
+                                         "congressional_purchase", profiles)
+                else:
+                    bonus = compute_bonus(generic_alpha, "congressional_purchase", profiles)
 
                 # Update signals
                 if ticker in WATCHLIST or is_vip:
@@ -240,16 +263,17 @@ def check_13f_changes(profiles, cache, signals):
                     alerts.append({"key": key, "message": msg, "fund": fund["id"]})
                     cache.setdefault("seen", []).append(key)
 
-                    # Apply bonus to known holdings
-                    score_bonuses = profiles.get("score_bonuses", {})
-                    bonus_key = f"{fund['id']}_new_position"
-                    bonus = score_bonuses.get(bonus_key, 0.5)
+                    # Apply bonus — formula: alpha_score * new_position multiplier
+                    bonus = compute_bonus(alpha, "new_position", profiles)
+                    tier = get_alpha_tier(alpha, profiles)
                     for ticker in fund.get("key_sectors", []):
                         if ticker in WATCHLIST:
                             if ticker not in signals:
                                 signals[ticker] = {"guru_bonus": 0, "reasons": []}
                             signals[ticker]["guru_bonus"] = max(signals[ticker]["guru_bonus"], bonus)
-                            signals[ticker]["reasons"].append(f"New 13F: {manager} filed {filing_date}")
+                            signals[ticker]["reasons"].append(
+                                f"New 13F: {manager} ({tier['label']}) filed {filing_date} | bonus +{bonus}"
+                            )
                             signals[ticker]["updated"] = datetime.now(timezone.utc).isoformat()
                     break
 
@@ -352,7 +376,8 @@ def main():
         print(alert["message"])
         post_discord(DISCORD_WAR_ROOM, alert["message"])
         # VIP (Pelosi, Druckenmiller) also post to breaking news
-        if alert.get("is_vip") or alert.get("bonus", 0) >= 0.9:
+        elite_threshold = profiles.get("alpha_tiers", {}).get("elite", {}).get("min", 0.85)
+        if alert.get("is_vip") or alert.get("bonus", 0) >= elite_threshold:
             post_discord(DISCORD_BREAKING, alert["message"])
 
     if not all_alerts:

@@ -32,7 +32,7 @@
       "aum_b": 14,
       "key_sectors": ["META", "GOOGL", "AMZN", "MSFT", "BABA"],
       "alpha_score": 0.8,
-      "notes": "Tepper is a macro genius. His public comments move markets. Heavily in Mag-7.",
+      "notes": "Macro genius. Public comments move markets. Heavily in Mag-7.",
       "sec_cik": "1656456",
       "13f_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=1656456&type=13F&dateb=&owner=include&count=10"
     },
@@ -44,7 +44,7 @@
       "aum_b": 300,
       "key_sectors": ["AAPL", "BAC", "OXY", "KO", "AXP", "CVX"],
       "alpha_score": 0.7,
-      "notes": "Buffett buys OXY when oil is cheap. AAPL is 45% of portfolio. Tracks energy + financials.",
+      "notes": "Buys OXY when oil is cheap. AAPL is 45% of portfolio. Tracks energy + financials.",
       "sec_cik": "1067294",
       "13f_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=1067294&type=13F&dateb=&owner=include&count=10"
     },
@@ -56,7 +56,7 @@
       "aum_b": 3,
       "key_sectors": ["NVDA", "GLD", "MSFT", "GOOGL"],
       "alpha_score": 0.9,
-      "notes": "Druckenmiller has the best long-term track record of any macro trader. Copy immediately.",
+      "notes": "Best long-term track record of any macro trader. Copy immediately.",
       "sec_cik": "1536411",
       "13f_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=1536411&type=13F&dateb=&owner=include&count=10"
     },
@@ -104,7 +104,7 @@
       "aum_b": 0.3,
       "key_sectors": ["puts", "BABA", "JD"],
       "alpha_score": 0.8,
-      "notes": "The Big Short. Concentrates in 5-10 positions. Bearish macro calls. Watch put positions.",
+      "notes": "Concentrates in 5-10 positions. Bearish macro calls. Watch put positions.",
       "sec_cik": "1336232",
       "13f_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=1336232&type=13F&dateb=&owner=include&count=10"
     },
@@ -116,7 +116,7 @@
       "aum_b": 35,
       "key_sectors": ["NVDA", "MSFT", "AAPL", "AMZN"],
       "alpha_score": 0.7,
-      "notes": "SAC successor. Fast-moving, sector-agnostic. Option flow often precedes 13F.",
+      "notes": "Fast-moving, sector-agnostic. Option flow often precedes 13F.",
       "sec_cik": "1603466",
       "13f_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=1603466&type=13F&dateb=&owner=include&count=10"
     }
@@ -130,7 +130,7 @@
       "state": "CA",
       "alpha_score": 0.95,
       "known_trades": ["NVDA calls", "MSFT", "GOOGL", "Roblox", "Apple"],
-      "notes": "Highest alpha of any politician. Husband Paul Pelosi files for her. Copy immediately. Historically buys growth/tech.",
+      "notes": "Highest alpha of any politician tracked. Historically buys growth/tech. Copy immediately.",
       "stock_watcher_id": "Nancy Pelosi"
     },
     {
@@ -141,7 +141,7 @@
       "state": "AL",
       "alpha_score": 0.7,
       "known_trades": ["financials", "energy", "defense"],
-      "notes": "Frequent trader. Financial sector focus. Army STOCK Act violator — but consistent winner.",
+      "notes": "Frequent trader. Financial sector focus. Consistent winner.",
       "stock_watcher_id": "Tommy Tuberville"
     },
     {
@@ -163,7 +163,7 @@
       "state": "KY",
       "alpha_score": 0.6,
       "known_trades": ["PFE puts (COVID)", "pharma shorts"],
-      "notes": "Famous COVID put trade on Gilead/Pfizer. Contrarian healthcare plays.",
+      "notes": "Contrarian healthcare plays. Famous COVID put trade.",
       "stock_watcher_id": "Rand Paul"
     },
     {
@@ -172,20 +172,27 @@
       "chamber": "Both",
       "party": "Any",
       "alpha_score": 0.55,
-      "notes": "Generic congressional buy = +0.4 score bonus. They have information advantages.",
+      "notes": "Generic congressional buy. They have information advantages. Base tier.",
       "stock_watcher_id": null
     }
   ],
-  "score_bonuses": {
-    "druckenmiller_new_position": 0.9,
-    "pelosi_purchase": 0.9,
-    "buffett_new_position": 0.7,
-    "tepper_new_position": 0.8,
-    "burry_new_long": 0.8,
-    "ackman_new_position": 0.7,
-    "congressional_purchase_generic": 0.4,
-    "insider_cluster_buy_3plus": 0.6,
-    "insider_ceo_buy_500k_plus": 0.7,
-    "three_funds_added_same_quarter": 0.6
+  "_comment_bonus_formula": "Bonuses are computed dynamically from alpha_score + action_multipliers. Do NOT hardcode bonuses by name. Formula: bonus = alpha_score * action_multiplier, capped at 0.95. Add any new manager/politician with an alpha_score — bonuses auto-derive.",
+  "action_multipliers": {
+    "new_position": 1.0,
+    "added_to_position": 0.75,
+    "trimmed_position": -0.3,
+    "closed_position": -0.5,
+    "congressional_purchase": 1.0,
+    "congressional_sale": -0.4,
+    "insider_ceo_buy_500k_plus": 0.85,
+    "insider_cluster_buy_3plus": 0.75,
+    "three_funds_added_same_quarter": 0.8,
+    "activist_letter_filed": 0.9
+  },
+  "alpha_tiers": {
+    "elite": {"min": 0.85, "label": "Elite — copy immediately", "vip": true},
+    "high":  {"min": 0.70, "label": "High alpha — strong signal",  "vip": false},
+    "mid":   {"min": 0.55, "label": "Mid alpha — supporting signal","vip": false},
+    "low":   {"min": 0.0,  "label": "Low alpha — context only",    "vip": false}
   }
 }
