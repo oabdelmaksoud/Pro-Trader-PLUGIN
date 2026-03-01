@@ -311,7 +311,7 @@ def main():
     triggered = []
     logged = []
 
-    print(f"[ticker_news_scanner] {now_str} | Scanning {len(WATCHLIST)} tickers | market_hours={is_market_hours()}")
+    print(f"[ticker_news_scanner] {now_str} | Scanning {len(WATCHLIST)} tickers | market_session={get_market_session('SPY')}")
 
     for ticker in WATCHLIST:
         try:

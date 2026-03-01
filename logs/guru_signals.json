@@ -1,0 +1,80 @@
+{
+  "GLD": {
+    "guru_bonus": 0.9,
+    "reasons": [
+      "New 13F: Ray Dalio (Mid alpha \u2014 supporting signal) filed 2026-02-13 | bonus +0.6",
+      "New 13F: Stanley Druckenmiller (Elite \u2014 copy immediately) filed 2026-02-17 | bonus +0.9"
+    ],
+    "updated": "2026-03-01T11:05:35.523217+00:00"
+  },
+  "SPY": {
+    "guru_bonus": 0.6,
+    "reasons": [
+      "New 13F: Ray Dalio (Mid alpha \u2014 supporting signal) filed 2026-02-13 | bonus +0.6"
+    ],
+    "updated": "2026-03-01T11:05:34.786030+00:00"
+  },
+  "TLT": {
+    "guru_bonus": 0.6,
+    "reasons": [
+      "New 13F: Ray Dalio (Mid alpha \u2014 supporting signal) filed 2026-02-13 | bonus +0.6"
+    ],
+    "updated": "2026-03-01T11:05:34.786035+00:00"
+  },
+  "META": {
+    "guru_bonus": 0.8,
+    "reasons": [
+      "New 13F: David Tepper (High alpha \u2014 strong signal) filed 2026-02-17 | bonus +0.8",
+      "New 13F: Chase Coleman (Mid alpha \u2014 supporting signal) filed 2026-02-17 | bonus +0.65",
+      "New 13F: Andreas Halvorsen (High alpha \u2014 strong signal) filed 2026-02-17 | bonus +0.7"
+    ],
+    "updated": "2026-03-01T11:05:36.047836+00:00"
+  },
+  "GOOGL": {
+    "guru_bonus": 0.9,
+    "reasons": [
+      "New 13F: David Tepper (High alpha \u2014 strong signal) filed 2026-02-17 | bonus +0.8",
+      "New 13F: Stanley Druckenmiller (Elite \u2014 copy immediately) filed 2026-02-17 | bonus +0.9",
+      "New 13F: Chase Coleman (Mid alpha \u2014 supporting signal) filed 2026-02-17 | bonus +0.65",
+      "New 13F: Andreas Halvorsen (High alpha \u2014 strong signal) filed 2026-02-17 | bonus +0.7"
+    ],
+    "updated": "2026-03-01T11:05:36.047839+00:00"
+  },
+  "AMZN": {
+    "guru_bonus": 0.8,
+    "reasons": [
+      "New 13F: David Tepper (High alpha \u2014 strong signal) filed 2026-02-17 | bonus +0.8",
+      "New 13F: Chase Coleman (Mid alpha \u2014 supporting signal) filed 2026-02-17 | bonus +0.65",
+      "New 13F: Steve Cohen (High alpha \u2014 strong signal) filed 2026-02-17 | bonus +0.7"
+    ],
+    "updated": "2026-03-01T11:05:36.300893+00:00"
+  },
+  "MSFT": {
+    "guru_bonus": 0.9,
+    "reasons": [
+      "New 13F: David Tepper (High alpha \u2014 strong signal) filed 2026-02-17 | bonus +0.8",
+      "New 13F: Stanley Druckenmiller (Elite \u2014 copy immediately) filed 2026-02-17 | bonus +0.9",
+      "New 13F: Chase Coleman (Mid alpha \u2014 supporting signal) filed 2026-02-17 | bonus +0.65",
+      "New 13F: Andreas Halvorsen (High alpha \u2014 strong signal) filed 2026-02-17 | bonus +0.7",
+      "New 13F: Steve Cohen (High alpha \u2014 strong signal) filed 2026-02-17 | bonus +0.7"
+    ],
+    "updated": "2026-03-01T11:05:36.300863+00:00"
+  },
+  "NVDA": {
+    "guru_bonus": 0.9,
+    "reasons": [
+      "New 13F: Stanley Druckenmiller (Elite \u2014 copy immediately) filed 2026-02-17 | bonus +0.9",
+      "New 13F: Chase Coleman (Mid alpha \u2014 supporting signal) filed 2026-02-17 | bonus +0.65",
+      "New 13F: Andreas Halvorsen (High alpha \u2014 strong signal) filed 2026-02-17 | bonus +0.7",
+      "New 13F: Steve Cohen (High alpha \u2014 strong signal) filed 2026-02-17 | bonus +0.7"
+    ],
+    "updated": "2026-03-01T11:05:36.300832+00:00"
+  },
+  "AAPL": {
+    "guru_bonus": 0.7,
+    "reasons": [
+      "New 13F: Steve Cohen (High alpha \u2014 strong signal) filed 2026-02-17 | bonus +0.7"
+    ],
+    "updated": "2026-03-01T11:05:36.300880+00:00"
+  }
+}
