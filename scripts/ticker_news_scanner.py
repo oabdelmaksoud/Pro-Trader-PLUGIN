@@ -248,13 +248,53 @@ def trigger_trade(ticker: str, tier: str, direction: str, headline: str, url: st
     except Exception as e:
         print(f"WARN: trigger failed for {ticker}: {e}")
 
-def is_market_hours() -> bool:
-    """Check if we're in trading hours (9:35 AM–2:15 PM ET)."""
+# Tickers that trade outside regular US market hours
+CRYPTO_PROXIES = {"MSTR", "COIN", "RIOT", "MARA", "CLSK", "CORZ"}
+FUTURES_TICKERS = {"ES=F", "NQ=F", "CL=F", "GC=F", "SI=F", "NG=F"}
+
+
+def get_market_session(ticker: str) -> str:
+    """
+    Returns the current market session for a given ticker:
+      'regular'       — 9:30 AM–4:00 PM ET (full liquidity, normal entry rules)
+      'premarket'     — 4:00 AM–9:30 AM ET (Alpaca extended_hours=True, wider spreads)
+      'afterhours'    — 4:00 PM–8:00 PM ET (Alpaca extended_hours=True, lower volume)
+      'crypto_active' — 24/7 for crypto proxies and BTC-correlated tickers
+      'futures_active'— Sunday 6 PM–Friday 5 PM ET (futures tickers)
+      'closed'        — weekends/overnight for regular equities
+    """
     import pytz
-    et = pytz.timezone("America/New_York")
-    now = datetime.now(et).time()
     from datetime import time as dtime
-    return dtime(9, 35) <= now <= dtime(14, 15)
+
+    et = pytz.timezone("America/New_York")
+    now_et = datetime.now(et)
+    t = now_et.time()
+    weekday = now_et.weekday()  # 0=Mon, 6=Sun
+
+    # Crypto proxies — always active
+    if ticker.upper() in CRYPTO_PROXIES:
+        return "crypto_active"
+
+    # Futures — active Sun 6 PM through Fri 5 PM ET (with 1h maintenance gap)
+    if ticker.upper() in FUTURES_TICKERS:
+        if weekday == 5:  # Saturday — futures closed
+            return "closed"
+        if weekday == 6 and t < dtime(18, 0):  # Sunday before 6 PM
+            return "closed"
+        if weekday == 4 and t >= dtime(17, 0):  # Friday after 5 PM
+            return "closed"
+        return "futures_active"
+
+    # Regular equities — check session
+    if weekday >= 5:  # Weekend
+        return "closed"
+    if dtime(9, 30) <= t < dtime(16, 0):
+        return "regular"
+    if dtime(4, 0) <= t < dtime(9, 30):
+        return "premarket"
+    if dtime(16, 0) <= t < dtime(20, 0):
+        return "afterhours"
+    return "closed"  # overnight (8 PM–4 AM ET)
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
@@ -312,23 +352,62 @@ def main():
 
             logged.append(f"  [{ticker}] {tier} ({direction}) — {headline[:80]}")
 
-            if tier in ("CATALYST_A", "CATALYST_B") and is_market_hours():
-                print(f"  🔥 {ticker} {tier} {direction}: {headline[:60]}")
-                trigger_trade(ticker, tier, direction, headline, url)
-                triggered.append(ticker)
-
-                # Post to war-room
+            if tier in ("CATALYST_A", "CATALYST_B"):
+                session = get_market_session(ticker)
                 emoji = "🚨" if tier == "CATALYST_A" else "⚡"
                 arrow = "📈" if direction == "long" else "📉"
-                post_discord(WAR_ROOM,
-                    f"{emoji} TICKER CATALYST — {ticker} | {now_str}\n"
-                    f"{arrow} {headline}\n"
-                    f"Tier: {tier} | Direction: {direction.upper()}\n"
-                    f"🔗 {url}\n"
-                    f"⚡ Trade trigger sent — Cooper 🦅"
-                )
-            elif tier in ("CATALYST_A", "CATALYST_B") and not is_market_hours():
-                print(f"  [{ticker}] {tier} found but outside market hours — logged only")
+
+                if session == "regular":
+                    # Normal market hours — full entry rules apply
+                    print(f"  🔥 {ticker} {tier} {direction} [REGULAR]: {headline[:55]}")
+                    trigger_trade(ticker, tier, direction, headline, url)
+                    triggered.append(ticker)
+                    post_discord(WAR_ROOM,
+                        f"{emoji} CATALYST — {ticker} | {now_str}\n"
+                        f"{arrow} {headline}\n"
+                        f"Tier: {tier} | Session: REGULAR | Direction: {direction.upper()}\n"
+                        f"🔗 {url}\n"
+                        f"⚡ Trade trigger sent — Cooper 🦅"
+                    )
+
+                elif session in ("premarket", "afterhours"):
+                    # Extended hours — Alpaca supports this with extended_hours=True flag
+                    print(f"  ⏰ {ticker} {tier} {direction} [{session.upper()}]: {headline[:55]}")
+                    trigger_trade(ticker, tier, direction, headline, url)
+                    triggered.append(ticker)
+                    post_discord(WAR_ROOM,
+                        f"{emoji} CATALYST [{session.upper()}] — {ticker} | {now_str}\n"
+                        f"{arrow} {headline}\n"
+                        f"Tier: {tier} | Direction: {direction.upper()} | Extended hours trade\n"
+                        f"⚠️ Wider spreads — limit orders recommended\n"
+                        f"🔗 {url}\n"
+                        f"⚡ Trade trigger sent — Cooper 🦅"
+                    )
+
+                elif session in ("crypto_active", "futures_active"):
+                    # 24/7 instruments — always trigger
+                    print(f"  🌐 {ticker} {tier} {direction} [24/7]: {headline[:55]}")
+                    trigger_trade(ticker, tier, direction, headline, url)
+                    triggered.append(ticker)
+                    post_discord(WAR_ROOM,
+                        f"{emoji} CATALYST [24/7] — {ticker} | {now_str}\n"
+                        f"{arrow} {headline}\n"
+                        f"Tier: {tier} | Direction: {direction.upper()}\n"
+                        f"🔗 {url}\n"
+                        f"⚡ Trade trigger sent — Cooper 🦅"
+                    )
+
+                elif session == "closed":
+                    # Markets closed — post pre-position alert for next open
+                    print(f"  📋 {ticker} {tier} {direction} [CLOSED/OVERNIGHT]: pre-position alert")
+                    post_discord(WAR_ROOM,
+                        f"{emoji} PRE-POSITION ALERT — {ticker} | {now_str}\n"
+                        f"{arrow} {headline}\n"
+                        f"Tier: {tier} | Direction: {direction.upper()}\n"
+                        f"📋 Markets closed — watch at next open\n"
+                        f"🔗 {url}\n"
+                        f"— Cooper 🦅"
+                    )
             # CATALYST_C: log only, no trade
 
         time.sleep(0.08)  # ~80ms between tickers, stays under Finnhub free tier rate limit
