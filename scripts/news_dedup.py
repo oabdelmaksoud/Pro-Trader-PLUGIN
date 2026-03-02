@@ -80,13 +80,14 @@ class NewsDedup:
         self._save()
 
     def _purge_expired(self):
-        """Remove entries older than max TTL."""
+        """Remove entries older than max TTL, and evict any malformed (non-dict) entries."""
         max_ttl = max(TTL.values())
         now = time.time()
-        expired = [k for k, v in self._cache.items() if now - v["posted_at"] > max_ttl]
-        for k in expired:
+        bad = [k for k, v in self._cache.items() if not isinstance(v, dict)]
+        expired = [k for k, v in self._cache.items() if isinstance(v, dict) and now - v.get("posted_at", 0) > max_ttl]
+        for k in bad + expired:
             del self._cache[k]
-        if expired:
+        if bad or expired:
             self._save()
 
     def get_recent(self, hours: int = 4) -> list:

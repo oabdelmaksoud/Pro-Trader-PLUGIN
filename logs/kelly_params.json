@@ -1,0 +1,9 @@
+{
+  "win_rate": 0.6,
+  "avg_win": 0.12,
+  "avg_loss": 0.03,
+  "trades_counted": 0,
+  "half_kelly_fraction": 0.1,
+  "updated": "2026-03-01",
+  "method": "default"
+}

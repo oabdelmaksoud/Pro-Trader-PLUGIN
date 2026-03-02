@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """CooperCorp PRJ-002 — Alpaca Account Status"""
-import os, subprocess
+import os, subprocess, sys
 from pathlib import Path
-from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent.parent / ".env")
+REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO))
+
+from dotenv import load_dotenv
+load_dotenv(REPO / ".env")
 
 from tradingagents.brokers.alpaca import AlpacaBroker
 

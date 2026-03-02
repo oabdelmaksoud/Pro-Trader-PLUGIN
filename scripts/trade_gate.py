@@ -10,6 +10,7 @@ Usage:
 """
 import argparse
 import json
+import subprocess
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -73,12 +74,27 @@ def main():
     # Always get price data, even for PASSes (for accuracy tracking)
     try:
         bar = broker.get_latest_bar(args.ticker)
+        if bar is None:
+            raise ValueError("No bar data returned (market may be closed)")
         price = float(bar["close"])
         signal["price_at_signal"] = price
         signal["stop_loss"] = round(price * (1 - args.stop_pct), 2)
         signal["target"] = round(price * (1 + args.target_pct), 2)
     except Exception as e:
         print(f"WARN: Could not get price for {args.ticker}: {e}")
+        # Try yfinance as fallback
+        try:
+            import yfinance as yf
+            tkr = yf.Ticker(args.ticker)
+            info = tkr.fast_info
+            price = float(info.last_price or info.previous_close or 0)
+            if price > 0:
+                signal["price_at_signal"] = price
+                signal["stop_loss"] = round(price * (1 - args.stop_pct), 2)
+                signal["target"] = round(price * (1 + args.target_pct), 2)
+                print(f"Price fallback (yfinance): ${price:.2f}")
+        except Exception as e2:
+            print(f"WARN: yfinance fallback also failed: {e2}")
 
     # Guru bonus injection (from guru_tracker.py signals)
     guru_bonus = 0.0
@@ -152,7 +168,7 @@ def main():
     # Gate 4b: Portfolio heat check
     from tradingagents.risk.portfolio_heat import PortfolioHeat
     heat = PortfolioHeat(broker)
-    position_size_pct = float(strategy.get("position", {}).get("default_pct", 0.05)) * 100
+    position_size_pct = args.portfolio_pct * 100  # default 5%
     heat_ok, heat_reason = heat.can_add_position(args.ticker, position_size_pct)
     if not heat_ok and args.action == "BUY":
         signal["skip_reason"] = f"Portfolio heat: {heat_reason}"
@@ -254,8 +270,7 @@ def main():
                             f"⚙️ Risk profile: {risk}\n"
                             f"— Cooper 🦅 | Personal Alert"
                         )
-                        import subprocess as _sub
-                        _sub.run(
+                        subprocess.run(
                             ["openclaw", "message", "send", "--channel", "discord",
                              "--target", ch_id, "--message", personal_msg],
                             capture_output=True, timeout=10
@@ -275,12 +290,11 @@ def main():
             )
             mark_entered(db_signal_id, signal["price_at_signal"])
             # Persist signal_id for close_position.py to use
-            import json as _json
             _sid_path = Path(__file__).parent.parent / "logs" / "open_trades"
             _sid_path.mkdir(parents=True, exist_ok=True)
             (_sid_path / f"{args.ticker}.signal_id").write_text(str(db_signal_id))
             # Write score/conviction for reflection engine
-            (_sid_path / f"{args.ticker}.score").write_text(str(final_score))
+            (_sid_path / f"{args.ticker}.score").write_text(str(args.score))
             (_sid_path / f"{args.ticker}.conviction").write_text(str(args.conviction))
         except Exception as _e:
             print(f"WARN: signal_db log error: {_e}")
@@ -297,7 +311,6 @@ def main():
             pass
 
         # Save open trade record
-        import json
         open_trades_dir = Path(__file__).parent.parent / "logs" / "open_trades"
         open_trades_dir.mkdir(parents=True, exist_ok=True)
         (open_trades_dir / f"{args.ticker}.json").write_text(json.dumps({
@@ -318,7 +331,6 @@ def main():
         print(f"  Bracket: Stop ${signal['stop_loss']:.2f} | Target ${signal['target']:.2f}")
 
         # Post signal card (standardized format) to #paper-trades + #gamespoofer-trades
-        import subprocess
         try:
             from tradingagents.discord_signal_card import format_signal_card
             price = signal["price_at_signal"]
