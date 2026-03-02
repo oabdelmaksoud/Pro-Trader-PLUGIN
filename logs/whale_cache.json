@@ -1,4 +1,153 @@
 {
-  "seen": [],
-  "last_run": "2026-03-02T05:04:43.481339+00:00"
+  "seen": [
+    "congressional_reminder:2026-03-02",
+    "inst:AAPL:Berkshire Hathaway, Inc:0.0155"
+  ],
+  "last_run": "2026-03-02T05:17:58.939851+00:00",
+  "inst_holders_snapshot": {
+    "NVDA": {
+      "Vanguard Group Inc": 0.0933,
+      "Blackrock Inc.": 0.08,
+      "State Street Corporation": 0.040799998,
+      "FMR, LLC": 0.04,
+      "Geode Capital Management, LLC": 0.0242,
+      "JPMORGAN CHASE & CO": 0.0188,
+      "Price (T.Rowe) Associates Inc": 0.0154,
+      "NORGES BANK": 0.0137,
+      "Morgan Stanley": 0.013300001,
+      "Northern Trust Corporation": 0.0104
+    },
+    "MSFT": {
+      "Vanguard Group Inc": 0.0967,
+      "Blackrock Inc.": 0.081099994,
+      "State Street Corporation": 0.041199997,
+      "FMR, LLC": 0.0271,
+      "Geode Capital Management, LLC": 0.024600001,
+      "JPMORGAN CHASE & CO": 0.0199,
+      "Price (T.Rowe) Associates Inc": 0.016900001,
+      "Morgan Stanley": 0.0163,
+      "NORGES BANK": 0.014099999,
+      "Capital International Investors": 0.011
+    },
+    "AAPL": {
+      "Vanguard Group Inc": 0.097200006,
+      "Blackrock Inc.": 0.078600004,
+      "State Street Corporation": 0.041100003,
+      "Geode Capital Management, LLC": 0.024400001,
+      "FMR, LLC": 0.0209,
+      "Morgan Stanley": 0.015700001,
+      "Berkshire Hathaway, Inc": 0.0155,
+      "JPMORGAN CHASE & CO": 0.0154,
+      "Price (T.Rowe) Associates Inc": 0.0139,
+      "NORGES BANK": 0.013099999
+    },
+    "GOOGL": {
+      "Vanguard Group Inc": 0.090900004,
+      "Blackrock Inc.": 0.0759,
+      "FMR, LLC": 0.0398,
+      "State Street Corporation": 0.0392,
+      "Geode Capital Management, LLC": 0.0251,
+      "Morgan Stanley": 0.0209,
+      "NORGES BANK": 0.0168,
+      "Price (T.Rowe) Associates Inc": 0.014400001,
+      "Bank of America Corporation": 0.0119,
+      "Northern Trust Corporation": 0.0112
+    },
+    "META": {
+      "Vanguard Group Inc": 0.5841,
+      "Blackrock Inc.": 0.50090003,
+      "FMR, LLC": 0.35729998,
+      "State Street Corporation": 0.2653,
+      "Geode Capital Management, LLC": 0.1542,
+      "JPMORGAN CHASE & CO": 0.12810001,
+      "Capital World Investors": 0.1155,
+      "Morgan Stanley": 0.1097,
+      "Price (T.Rowe) Associates Inc": 0.1026,
+      "NORGES BANK": 0.098000005
+    },
+    "AMZN": {
+      "Vanguard Group Inc": 0.0788,
+      "Blackrock Inc.": 0.0684,
+      "State Street Corporation": 0.036199998,
+      "FMR, LLC": 0.0309,
+      "Geode Capital Management, LLC": 0.021,
+      "Morgan Stanley": 0.0150999995,
+      "JPMORGAN CHASE & CO": 0.0149,
+      "NORGES BANK": 0.013300001,
+      "Price (T.Rowe) Associates Inc": 0.012200001,
+      "Northern Trust Corporation": 0.0088
+    },
+    "AMD": {
+      "Vanguard Group Inc": 0.097200006,
+      "Blackrock Inc.": 0.090500005,
+      "State Street Corporation": 0.046,
+      "Geode Capital Management, LLC": 0.0231,
+      "Morgan Stanley": 0.0154,
+      "NORGES BANK": 0.014099999,
+      "JPMORGAN CHASE & CO": 0.0128,
+      "Price (T.Rowe) Associates Inc": 0.0125,
+      "UBS AM, a distinct business unit of UBS ASSET MANAGEMENT AMERICAS LLC": 0.0114,
+      "Northern Trust Corporation": 0.010199999
+    },
+    "TSLA": {
+      "Vanguard Group Inc": 0.069,
+      "Blackrock Inc.": 0.0558,
+      "State Street Corporation": 0.0306,
+      "Geode Capital Management, LLC": 0.0175,
+      "JPMORGAN CHASE & CO": 0.0119,
+      "Capital World Investors": 0.0113,
+      "FMR, LLC": 0.0105,
+      "NORGES BANK": 0.0101,
+      "Morgan Stanley": 0.0095,
+      "Goldman Sachs Group Inc": 0.0073
+    },
+    "PLTR": {
+      "Vanguard Group Inc": 0.0988,
+      "Blackrock Inc.": 0.0887,
+      "State Street Corporation": 0.047,
+      "Geode Capital Management, LLC": 0.0249,
+      "JPMORGAN CHASE & CO": 0.0163,
+      "Morgan Stanley": 0.0134000005,
+      "NORGES BANK": 0.013300001,
+      "Invesco Ltd.": 0.010299999,
+      "Northern Trust Corporation": 0.0095,
+      "FMR, LLC": 0.0087
+    },
+    "CRWD": {
+      "Vanguard Group Inc": 0.096099995,
+      "Blackrock Inc.": 0.083900005,
+      "State Street Corporation": 0.044299997,
+      "Morgan Stanley": 0.0247,
+      "Geode Capital Management, LLC": 0.023599999,
+      "JPMORGAN CHASE & CO": 0.0222,
+      "Jennison Associates LLC": 0.0218,
+      "Price (T.Rowe) Associates Inc": 0.016900001,
+      "NORGES BANK": 0.014400001,
+      "FMR, LLC": 0.012999999
+    },
+    "ARM": {
+      "Goldman Sachs Group Inc": 0.0037,
+      "Morgan Stanley": 0.0036000002,
+      "Sustainable Growth Advisors, LP": 0.0025,
+      "Invesco Ltd.": 0.0023,
+      "Bank of America Corporation": 0.0022,
+      "Coatue Management LLC": 0.0022,
+      "Wellington Management Group, LLP": 0.002,
+      "Dz Bank Ag Deutsche Zentral Genossenschafts Bank, Frankfurt Am Main": 0.002,
+      "Alphabet Inc.": 0.0019,
+      "Schroder Investment Management Group": 0.0018000001
+    },
+    "MSTR": {
+      "Vanguard Group Inc": 0.0766,
+      "Capital International Investors": 0.0656,
+      "Blackrock Inc.": 0.0465,
+      "Morgan Stanley": 0.0299,
+      "Capital Research Global Investors": 0.0223,
+      "State Street Corporation": 0.0195,
+      "UBS Group AG": 0.0183,
+      "Amundi": 0.0153,
+      "Geode Capital Management, LLC": 0.0125,
+      "Bank of America Corporation": 0.0123000005
+    }
+  }
 }

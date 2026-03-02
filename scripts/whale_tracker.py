@@ -236,23 +236,192 @@ def check_unusual_options(cache):
     return alerts
 
 
+def check_yfinance_insider_buys(cache):
+    """Scan watchlist tickers for recent executive/director purchases via yfinance.
+
+    Source: SEC Form 4 filings aggregated by yfinance — completely free.
+    Filters for: Purchase transactions only, value > $100k, within last 7 days.
+    High-priority: CEO, CFO, President, Director, 10%+ Owner buys.
+    """
+    alerts = []
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+
+    HIGH_PRIORITY_TITLES = {"ceo", "cfo", "president", "chairman", "coo", "10%", "owner"}
+
+    try:
+        import yfinance as yf
+        import pandas as pd
+    except ImportError:
+        print("  yfinance not installed — skipping")
+        return alerts
+
+    for ticker in WATCHLIST:
+        try:
+            t = yf.Ticker(ticker)
+            ins = t.insider_transactions
+            if ins is None or ins.empty:
+                continue
+
+            for _, row in ins.iterrows():
+                tx_text = str(row.get("Text", "")).lower()
+                tx_type = str(row.get("Transaction", "")).lower()
+
+                # Only purchases (not grants, sales, tax withholding)
+                if "purchase" not in tx_text and "purchase" not in tx_type:
+                    continue
+                if "sale" in tx_text or "grant" in tx_text or "award" in tx_text:
+                    continue
+
+                value = float(row.get("Value", 0) or 0)
+                if value < 100_000:
+                    continue
+
+                # Date check
+                try:
+                    start_date = row.get("Start Date")
+                    if start_date is None:
+                        continue
+                    if hasattr(start_date, 'tzinfo') and start_date.tzinfo is None:
+                        import pandas as pd
+                        start_dt = pd.Timestamp(start_date).tz_localize("UTC")
+                    else:
+                        start_dt = pd.Timestamp(start_date).tz_convert("UTC")
+                    if start_dt < pd.Timestamp(cutoff):
+                        continue
+                    date_str = start_dt.strftime("%Y-%m-%d")
+                except Exception:
+                    date_str = str(row.get("Start Date", ""))
+
+                insider_name = str(row.get("Insider", "Unknown"))
+                position = str(row.get("Position", ""))
+                shares = int(row.get("Shares", 0) or 0)
+
+                key = f"yf_ins:{ticker}:{insider_name}:{date_str}:{value:.0f}"
+                if is_seen(cache, key):
+                    continue
+
+                # Determine priority
+                pos_lower = position.lower()
+                is_high_priority = any(t in pos_lower for t in HIGH_PRIORITY_TITLES)
+                priority_tag = "🔴 HIGH SIGNAL" if is_high_priority else "📋"
+
+                alerts.append({
+                    "type": "insider_buy",
+                    "key": key,
+                    "ticker": ticker,
+                    "direction": "long",
+                    "message": (
+                        f"{priority_tag} INSIDER BUY — {ticker} | {date_str}\n"
+                        f"👤 {insider_name} ({position})\n"
+                        f"📊 Purchased {shares:,} shares | Value: ${value:,.0f}\n"
+                        f"🔗 https://finviz.com/quote.ashx?t={ticker}\n"
+                        f"— Cooper 🦅 | Whale Tracker (SEC Form 4)"
+                    ),
+                })
+                mark_seen(cache, key)
+                print(f"  [{ticker}] {insider_name} ({position}) bought ${value:,.0f}")
+
+        except Exception as e:
+            print(f"  [{ticker}] yfinance error: {e}")
+            continue
+
+    return alerts
+
+
+def check_institutional_changes(cache):
+    """Detect significant institutional holder changes via yfinance.
+
+    Flags: new large positions or >5% change in holdings from top institutions.
+    Source: yfinance institutional_holders — completely free.
+    """
+    alerts = []
+
+    SIGNAL_INSTITUTIONS = {
+        "soros", "druckenmiller", "berkshire", "pershing", "appaloosa",
+        "tiger", "point72", "viking", "third point", "duquesne",
+        "bridgewater", "citadel", "renaissance"
+    }
+
+    INST_CACHE_KEY = "inst_holders_snapshot"
+    prev_snapshot = cache.get(INST_CACHE_KEY, {})
+
+    try:
+        import yfinance as yf
+    except ImportError:
+        return alerts
+
+    new_snapshot = {}
+    for ticker in WATCHLIST[:12]:  # Limit to avoid rate throttling
+        try:
+            t = yf.Ticker(ticker)
+            ih = t.institutional_holders
+            if ih is None or ih.empty:
+                continue
+
+            current = {}
+            for _, row in ih.iterrows():
+                holder = str(row.get("Holder", ""))
+                pct = float(row.get("pctHeld", 0) or 0)
+                current[holder] = pct
+
+                # Check if it's a tracked guru institution
+                holder_lower = holder.lower()
+                if any(sig in holder_lower for sig in SIGNAL_INSTITUTIONS):
+                    prev_pct = prev_snapshot.get(ticker, {}).get(holder, 0)
+                    change = pct - prev_pct
+                    if abs(change) > 0.005:  # >0.5% change
+                        key = f"inst:{ticker}:{holder}:{pct:.4f}"
+                        if not is_seen(cache, key):
+                            direction = "increased" if change > 0 else "reduced"
+                            alerts.append({
+                                "type": "institutional",
+                                "key": key,
+                                "ticker": ticker,
+                                "direction": "long" if change > 0 else "short",
+                                "message": (
+                                    f"🏦 INSTITUTIONAL CHANGE — {ticker}\n"
+                                    f"🏛️ {holder} {direction} position: {pct*100:.2f}% ({change*100:+.2f}%)\n"
+                                    f"🔗 https://finviz.com/quote.ashx?t={ticker}\n"
+                                    f"— Cooper 🦅 | Whale Tracker (Institutional)"
+                                ),
+                            })
+                            mark_seen(cache, key)
+
+            new_snapshot[ticker] = current
+        except Exception as e:
+            print(f"  [{ticker}] institutional error: {e}")
+
+    cache[INST_CACHE_KEY] = new_snapshot
+    return alerts
+
+
 def main():
     print(f"🐋 Whale Tracker | {datetime.now().strftime('%Y-%m-%d %H:%M ET')}")
     cache = load_cache()
 
     all_alerts = []
 
-    print("\n[1/3] Congressional trades...")
+    print("\n[1/5] Congressional trades (manual reminder)...")
     congressional = check_congressional_trades(cache)
     print(f"  Found: {len(congressional)}")
     all_alerts.extend(congressional)
 
-    print("\n[2/3] Insider Form 4...")
+    print("\n[2/5] Insider buys (yfinance SEC Form 4 — free)...")
+    yf_insider = check_yfinance_insider_buys(cache)
+    print(f"  Found: {len(yf_insider)}")
+    all_alerts.extend(yf_insider)
+
+    print("\n[3/5] Insider Form 4 RSS feeds...")
     insider = check_insider_form4(cache)
     print(f"  Found: {len(insider)}")
     all_alerts.extend(insider)
 
-    print("\n[3/3] Unusual options flow...")
+    print("\n[4/5] Institutional holder changes (yfinance — free)...")
+    institutional = check_institutional_changes(cache)
+    print(f"  Found: {len(institutional)}")
+    all_alerts.extend(institutional)
+
+    print("\n[5/5] Unusual options flow (Finnhub)...")
     options = check_unusual_options(cache)
     print(f"  Found: {len(options)}")
     all_alerts.extend(options)
@@ -260,9 +429,10 @@ def main():
     print(f"\n📊 Total alerts: {len(all_alerts)}")
 
     for alert in all_alerts:
-        print(f"\n🚨 {alert['type'].upper()}: {alert['ticker']}")
+        print(f"\n🚨 {alert['type'].upper()}: {alert.get('ticker','?')}")
         print(alert['message'])
-        post_discord(DISCORD_WAR_ROOM, alert['message'])
+        channel = alert.get("channel_override", DISCORD_WAR_ROOM)
+        post_discord(channel, alert['message'])
 
     if not all_alerts:
         print("✅ No new whale activity detected.")
