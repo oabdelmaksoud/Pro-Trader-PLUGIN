@@ -26,7 +26,6 @@ from dotenv import load_dotenv
 load_dotenv(REPO / ".env")
 
 FINNHUB_KEY = os.getenv("FINNHUB_API_KEY", "")
-QUIVERQUANT_KEY = os.getenv("QUIVERQUANT_API_KEY", "")
 DISCORD_WAR_ROOM = "1469763123010342953"
 DISCORD_BREAKING = "1477247545322246198"
 
@@ -78,101 +77,46 @@ def post_discord(channel_id, message):
 
 
 def check_congressional_trades(cache):
-    """Check congressional STOCK Act disclosures.
-    Primary: QuiverQuant free API
-    Fallback: Capitol Trades RSS
-    (housestockwatcher.com / senatestockwatcher.com removed — DNS unreachable in sandbox)
+    """Congressional STOCK Act disclosure tracker.
+
+    NOTE: All real-time congressional data APIs (QuiverQuant, Unusual Whales,
+    Capitol Trades) require paid subscriptions. No free programmatic source exists.
+
+    This function posts a periodic reminder with direct links for manual review.
+    Runs every 4 hours — posts reminder only once per trading day (not every cycle).
     """
-    import re as _re
-    alerts = []
-    cutoff = datetime.now(timezone.utc) - timedelta(days=5)
-    sources_tried = []
+    from datetime import date as _date
+    today = str(_date.today())
+    reminder_key = f"congressional_reminder:{today}"
 
-    # Source 1: QuiverQuant (free tier — requires QUIVERQUANT_API_KEY in .env)
-    # Get free key at: https://www.quiverquant.com/
-    if not QUIVERQUANT_KEY:
-        sources_tried.append("QuiverQuant ⏭️ (no key — add QUIVERQUANT_API_KEY to .env)")
-    else:
-      try:
-        r = requests.get(
-            "https://api.quiverquant.com/beta/live/congresstrading",
-            headers={"User-Agent": "CooperCorp/1.0", "Authorization": f"Token {QUIVERQUANT_KEY}"}, timeout=10
-        )
-        if r.status_code == 200:
-            trades = r.json() if isinstance(r.json(), list) else []
-            sources_tried.append("QuiverQuant ✅")
-            for tx in trades[:100]:
-                ticker = tx.get("Ticker", "").upper().strip()
-                if not ticker or ticker == "--":
-                    continue
-                name = tx.get("Representative", "Unknown")
-                tx_type = tx.get("Transaction", "").lower()
-                date_str = tx.get("Date", tx.get("ReportDate", ""))
-                amount = tx.get("Range", "Unknown")
-                chamber = tx.get("Chamber", "Congress")
-                key = f"qq:{name}:{ticker}:{date_str}:{tx_type}"
-                if is_seen(cache, key):
-                    continue
-                if ticker not in WATCHLIST and not any(x in str(amount) for x in ["250,001", "500,001", "1,000,001"]):
-                    continue
-                try:
-                    tx_date = datetime.strptime(date_str[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
-                    if tx_date < cutoff:
-                        continue
-                except Exception:
-                    pass
-                direction = "🟢 BUY" if "purchase" in tx_type or "buy" in tx_type else "🔴 SELL"
-                alerts.append({
-                    "type": "congressional", "key": key, "ticker": ticker,
-                    "direction": "long" if "purchase" in tx_type else "short",
-                    "message": (
-                        f"🏛️ CONGRESSIONAL TRADE — {chamber.upper()} | {date_str}\n"
-                        f"👤 {name}\n📊 {direction} {ticker} | {amount}\n"
-                        f"🔗 https://www.quiverquant.com/congresstrading\n— Cooper 🦅 | Whale Tracker"
-                    ),
-                })
-                mark_seen(cache, key)
-        else:
-            sources_tried.append(f"QuiverQuant ❌ ({r.status_code})")
-    except Exception as e:
-        sources_tried.append(f"QuiverQuant ❌ ({e})")
+    # Only post the reminder once per day (not every 4h cycle)
+    if is_seen(cache, reminder_key):
+        print("  Congressional: reminder already sent today")
+        return []
 
-    # Source 2: Capitol Trades RSS fallback
-    if not alerts:
-        try:
-            import feedparser as _fp
-            feed = _fp.parse("https://www.capitoltrades.com/rss.xml")
-            if feed.entries:
-                sources_tried.append("CapitolTrades ✅")
-                for entry in feed.entries[:20]:
-                    title = entry.get("title", "")
-                    link = entry.get("link", "")
-                    m = _re.search(r"\b([A-Z]{2,5})\b", title)
-                    ticker = m.group(1) if m else ""
-                    if not ticker or ticker not in WATCHLIST:
-                        continue
-                    key = f"ct:{title[:60]}"
-                    if is_seen(cache, key):
-                        continue
-                    direction_str = "BUY" if any(w in title.lower() for w in ["bought","purchase"]) else "SELL"
-                    alerts.append({
-                        "type": "congressional", "key": key, "ticker": ticker,
-                        "direction": direction_str.lower(),
-                        "message": (
-                            f"🏛️ CONGRESSIONAL TRADE\n📰 {title}\n"
-                            f"{'🟢' if direction_str=='BUY' else '🔴'} {direction_str} {ticker}\n"
-                            f"🔗 {link}\n— Cooper 🦅 | Whale Tracker"
-                        ),
-                    })
-                    mark_seen(cache, key)
-            else:
-                sources_tried.append("CapitolTrades ❌ (empty)")
-        except Exception as e:
-            sources_tried.append(f"CapitolTrades ❌ ({e})")
+    mark_seen(cache, reminder_key)
 
-    print(f"  Congressional sources: {', '.join(sources_tried) or 'all failed'}")
-    print(f"  Congressional alerts: {len(alerts)}")
-    return alerts
+    # Compose manual check reminder
+    msg = (
+        "🏛️ **Congressional Trade Monitoring — Manual Check Required**\n"
+        "No free real-time API available. Review disclosures directly:\n"
+        "• **House STOCK Act**: https://disclosures.house.gov/eFD/\n"
+        "• **Senate STOCK Act**: https://efds.senate.gov/\n"
+        "• **Capitol Trades** (visual): https://www.capitoltrades.com/\n"
+        "• **Unusual Whales** (visual): https://unusualwhales.com/politicians\n"
+        "\n_Check for energy (XOM/CVX/COP/SLB) and defense (LMT/RTX/NOC) buys given Iran thesis._\n"
+        "— Cooper 🦅 | Whale Tracker"
+    )
+
+    print("  Congressional: posting daily manual-check reminder")
+    return [{
+        "type": "congressional_reminder",
+        "key": reminder_key,
+        "ticker": None,
+        "direction": None,
+        "message": msg,
+        "channel_override": "1469763123010342953",  # #war-room only
+    }]
 
 def check_insider_form4(cache):
     """Check SEC EDGAR Form 4 RSS for recent insider buys."""
