@@ -26,6 +26,7 @@ from dotenv import load_dotenv
 load_dotenv(REPO / ".env")
 
 FINNHUB_KEY = os.getenv("FINNHUB_API_KEY", "")
+QUIVERQUANT_KEY = os.getenv("QUIVERQUANT_API_KEY", "")
 DISCORD_WAR_ROOM = "1469763123010342953"
 DISCORD_BREAKING = "1477247545322246198"
 
@@ -87,11 +88,15 @@ def check_congressional_trades(cache):
     cutoff = datetime.now(timezone.utc) - timedelta(days=5)
     sources_tried = []
 
-    # Source 1: QuiverQuant (no auth for basic data)
-    try:
+    # Source 1: QuiverQuant (free tier — requires QUIVERQUANT_API_KEY in .env)
+    # Get free key at: https://www.quiverquant.com/
+    if not QUIVERQUANT_KEY:
+        sources_tried.append("QuiverQuant ⏭️ (no key — add QUIVERQUANT_API_KEY to .env)")
+    else:
+      try:
         r = requests.get(
             "https://api.quiverquant.com/beta/live/congresstrading",
-            headers={"User-Agent": "CooperCorp/1.0"}, timeout=10
+            headers={"User-Agent": "CooperCorp/1.0", "Authorization": f"Token {QUIVERQUANT_KEY}"}, timeout=10
         )
         if r.status_code == 200:
             trades = r.json() if isinstance(r.json(), list) else []
