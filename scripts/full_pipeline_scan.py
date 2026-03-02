@@ -31,9 +31,30 @@ load_dotenv(REPO / ".env")
 
 def load_intelligence_context(repo: Path, ticker: str) -> dict:
     """Load pre-computed intelligence bonuses from daily scanners."""
-    bonuses = {"score_bonus": 0.0, "reasons": []}
+    bonuses = {"score_bonus": 0.0, "reasons": [], "kelly_fraction": 0.10, "halted": False}
 
-    # Guru signals (from guru_tracker.py)
+    # ── Drawdown halt check ──────────────────────────────────────────────────
+    try:
+        path = repo / "logs" / "drawdown_state.json"
+        if path.exists():
+            dd = json.loads(path.read_text())
+            if dd.get("halted"):
+                bonuses["halted"] = True
+                bonuses["halt_reason"] = f"Portfolio drawdown {dd.get('drawdown_pct', '?')}% (threshold: 5%)"
+    except Exception as e:
+        print(f"WARN: drawdown_state load failed: {e}")
+
+    # ── Kelly fraction (live win-rate from signal DB) ────────────────────────
+    try:
+        path = repo / "logs" / "kelly_params.json"
+        if path.exists():
+            kp = json.loads(path.read_text())
+            bonuses["kelly_fraction"] = float(kp.get("half_kelly_fraction", 0.10))
+            bonuses["win_rate"] = float(kp.get("win_rate", 0.60))
+    except Exception as e:
+        print(f"WARN: kelly_params load failed: {e}")
+
+    # ── Guru signals (from guru_tracker.py) ─────────────────────────────────
     try:
         path = repo / "logs" / "guru_signals.json"
         if path.exists():
@@ -47,7 +68,7 @@ def load_intelligence_context(repo: Path, ticker: str) -> dict:
     except Exception as e:
         print(f"WARN: guru_signals load failed: {e}")
 
-    # Sentiment scores (from sentiment_aggregator.py)
+    # ── Sentiment scores (from sentiment_aggregator.py) ──────────────────────
     try:
         path = repo / "logs" / "sentiment_scores.json"
         if path.exists():
@@ -63,7 +84,7 @@ def load_intelligence_context(repo: Path, ticker: str) -> dict:
     except Exception as e:
         print(f"WARN: sentiment_scores load failed: {e}")
 
-    # Short interest squeeze bonus (from short_interest.py)
+    # ── Short interest squeeze bonus ─────────────────────────────────────────
     try:
         path = repo / "logs" / "short_interest.json"
         if path.exists():
@@ -228,6 +249,18 @@ def main():
     print(f"Debate rounds: {args.rounds} | Threshold: {args.threshold}")
     print(f"{'='*60}\n")
 
+    # ── Pre-flight: Drawdown halt check (before spending any LLM tokens) ────
+    try:
+        dd_path = REPO / "logs" / "drawdown_state.json"
+        if dd_path.exists():
+            dd = json.loads(dd_path.read_text())
+            if dd.get("halted"):
+                print(f"🛑 DRAWDOWN HALT ACTIVE — portfolio down {dd.get('drawdown_pct','?')}%")
+                print("   No new analysis until drawdown circuit breaker resets.")
+                return {"ticker": ticker, "action": "skip", "reason": "drawdown_halt"}
+    except Exception as e:
+        print(f"WARN: drawdown check failed (non-fatal): {e}")
+
     # Step 1: Market data
     print("📊 Step 1: Gathering market data...")
     data = gather_market_data(ticker)
@@ -265,8 +298,14 @@ def main():
     confidence = signal["confidence"]
     print(f"   Direction: {direction} | Score: {final_score:.1f} | Confidence: {confidence}/10")
 
-    # Intelligence bonus injection (guru signals + sentiment + short interest)
+    # Intelligence bonus injection (guru signals + sentiment + short interest + drawdown + kelly)
     intel = load_intelligence_context(REPO, ticker)
+
+    # Second drawdown check (after loading intel — catches mid-session halts)
+    if intel.get("halted"):
+        print(f"🛑 DRAWDOWN HALT: {intel.get('halt_reason', 'active')}")
+        return {"ticker": ticker, "action": "skip", "reason": "drawdown_halt"}
+
     if intel["score_bonus"] != 0:
         final_score = min(10.0, final_score + intel["score_bonus"])
         signal["score"] = final_score

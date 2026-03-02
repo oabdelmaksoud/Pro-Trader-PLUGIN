@@ -77,77 +77,97 @@ def post_discord(channel_id, message):
 
 
 def check_congressional_trades(cache):
-    """Check House + Senate stock disclosures via stock watcher APIs."""
+    """Check congressional STOCK Act disclosures.
+    Primary: QuiverQuant free API
+    Fallback: Capitol Trades RSS
+    (housestockwatcher.com / senatestockwatcher.com removed — DNS unreachable in sandbox)
+    """
+    import re as _re
     alerts = []
-    cutoff = datetime.now(timezone.utc) - timedelta(days=3)  # Last 3 days
+    cutoff = datetime.now(timezone.utc) - timedelta(days=5)
+    sources_tried = []
 
-    sources = [
-        ("House", "https://housestockwatcher.com/api"),
-        ("Senate", "https://senatestockwatcher.com/api"),
-    ]
-
-    for chamber, url in sources:
-        try:
-            r = requests.get(url, timeout=10, headers={"User-Agent": "CooperCorp/1.0"})
-            if r.status_code != 200:
-                print(f"[{chamber}] HTTP {r.status_code}")
-                continue
-            data = r.json()
-            transactions = data if isinstance(data, list) else data.get("data", [])
-
-            for tx in transactions[:50]:  # Check last 50
-                ticker = tx.get("ticker", "").upper().strip()
+    # Source 1: QuiverQuant (no auth for basic data)
+    try:
+        r = requests.get(
+            "https://api.quiverquant.com/beta/live/congresstrading",
+            headers={"User-Agent": "CooperCorp/1.0"}, timeout=10
+        )
+        if r.status_code == 200:
+            trades = r.json() if isinstance(r.json(), list) else []
+            sources_tried.append("QuiverQuant ✅")
+            for tx in trades[:100]:
+                ticker = tx.get("Ticker", "").upper().strip()
                 if not ticker or ticker == "--":
                     continue
-
-                # Only watchlist tickers OR large transactions
-                amount = tx.get("amount", "")
-                name = tx.get("representative", tx.get("senator", "Unknown"))
-                tx_type = tx.get("type", "").lower()
-                date_str = tx.get("transaction_date", tx.get("disclosure_date", ""))
-
-                # Generate unique key
-                key = f"{chamber}:{name}:{ticker}:{date_str}:{tx_type}"
+                name = tx.get("Representative", "Unknown")
+                tx_type = tx.get("Transaction", "").lower()
+                date_str = tx.get("Date", tx.get("ReportDate", ""))
+                amount = tx.get("Range", "Unknown")
+                chamber = tx.get("Chamber", "Congress")
+                key = f"qq:{name}:{ticker}:{date_str}:{tx_type}"
                 if is_seen(cache, key):
                     continue
-
-                # Filter: watchlist tickers OR $250k+ transactions
-                is_watchlist = ticker in WATCHLIST
-                is_large = any(x in amount for x in ["$250,001", "$500,001", "$1,000,001", "$5,000,001"])
-
-                if not (is_watchlist or is_large):
+                if ticker not in WATCHLIST and not any(x in str(amount) for x in ["250,001", "500,001", "1,000,001"]):
                     continue
-
-                # Parse date
                 try:
-                    tx_date = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                    tx_date = datetime.strptime(date_str[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
                     if tx_date < cutoff:
                         continue
-                except:
+                except Exception:
                     pass
-
                 direction = "🟢 BUY" if "purchase" in tx_type or "buy" in tx_type else "🔴 SELL"
                 alerts.append({
-                    "type": "congressional",
-                    "key": key,
+                    "type": "congressional", "key": key, "ticker": ticker,
+                    "direction": "long" if "purchase" in tx_type else "short",
                     "message": (
                         f"🏛️ CONGRESSIONAL TRADE — {chamber.upper()} | {date_str}\n"
-                        f"👤 {name}\n"
-                        f"📊 {direction} {ticker} | {amount}\n"
-                        f"⚡ Impact: {ticker}\n"
-                        f"🔗 https://housestockwatcher.com" if chamber == "House" else f"🔗 https://senatestockwatcher.com"
-                        f"\n— Cooper 🦅 | Whale Tracker"
+                        f"👤 {name}\n📊 {direction} {ticker} | {amount}\n"
+                        f"🔗 https://www.quiverquant.com/congresstrading\n— Cooper 🦅 | Whale Tracker"
                     ),
-                    "ticker": ticker,
-                    "direction": "long" if "purchase" in tx_type or "buy" in tx_type else "short",
                 })
                 mark_seen(cache, key)
+        else:
+            sources_tried.append(f"QuiverQuant ❌ ({r.status_code})")
+    except Exception as e:
+        sources_tried.append(f"QuiverQuant ❌ ({e})")
 
+    # Source 2: Capitol Trades RSS fallback
+    if not alerts:
+        try:
+            import feedparser as _fp
+            feed = _fp.parse("https://www.capitoltrades.com/rss.xml")
+            if feed.entries:
+                sources_tried.append("CapitolTrades ✅")
+                for entry in feed.entries[:20]:
+                    title = entry.get("title", "")
+                    link = entry.get("link", "")
+                    m = _re.search(r"\b([A-Z]{2,5})\b", title)
+                    ticker = m.group(1) if m else ""
+                    if not ticker or ticker not in WATCHLIST:
+                        continue
+                    key = f"ct:{title[:60]}"
+                    if is_seen(cache, key):
+                        continue
+                    direction_str = "BUY" if any(w in title.lower() for w in ["bought","purchase"]) else "SELL"
+                    alerts.append({
+                        "type": "congressional", "key": key, "ticker": ticker,
+                        "direction": direction_str.lower(),
+                        "message": (
+                            f"🏛️ CONGRESSIONAL TRADE\n📰 {title}\n"
+                            f"{'🟢' if direction_str=='BUY' else '🔴'} {direction_str} {ticker}\n"
+                            f"🔗 {link}\n— Cooper 🦅 | Whale Tracker"
+                        ),
+                    })
+                    mark_seen(cache, key)
+            else:
+                sources_tried.append("CapitolTrades ❌ (empty)")
         except Exception as e:
-            print(f"[{chamber}] Error: {e}")
+            sources_tried.append(f"CapitolTrades ❌ ({e})")
 
+    print(f"  Congressional sources: {', '.join(sources_tried) or 'all failed'}")
+    print(f"  Congressional alerts: {len(alerts)}")
     return alerts
-
 
 def check_insider_form4(cache):
     """Check SEC EDGAR Form 4 RSS for recent insider buys."""
