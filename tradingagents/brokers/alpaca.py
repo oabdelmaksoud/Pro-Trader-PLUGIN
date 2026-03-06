@@ -149,6 +149,9 @@ class AlpacaBroker:
                             self.low = d["price"]
                             self.volume = 0
                             self.timestamp = d.get("timestamp", "")
+
+                        def __getitem__(self, key):
+                            return getattr(self, key)
                     return LivePrice(p)
             except Exception:
                 pass
