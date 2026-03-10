@@ -3,6 +3,9 @@ CooperCorp PRJ-002 — Alpaca WebSocket real-time feed.
 Replaces 15-min cron polling with live price updates.
 Runs as a background process; exits cleanly on SIGTERM.
 
+Now uses TrailingStopManager + PartialExitManager instead of hardcoded %.
+Reads thresholds from config/strategy.json.
+
 Usage (background):
   python3 -m tradingagents.dataflows.alpaca_stream &
 
@@ -31,6 +34,7 @@ except ImportError:
 REPO_ROOT = Path(__file__).parent.parent.parent
 PRICES_FILE = REPO_ROOT / "logs" / "live_prices.json"
 PID_FILE = REPO_ROOT / "logs" / "stream.pid"
+STRATEGY_FILE = REPO_ROOT / "config" / "strategy.json"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [STREAM] %(message)s")
 log = logging.getLogger("alpaca_stream")
@@ -46,6 +50,29 @@ class AlpacaStream:
         self.running = False
         self.wss_client = None
         self._subscribed = set()
+        self._closed_symbols: set = set()  # prevent double-close
+        self._trail_mgr = None
+        self._partial_mgr = None
+        self._strategy = self._load_strategy()
+
+    def _load_strategy(self) -> dict:
+        """Load strategy config for thresholds."""
+        try:
+            return json.loads(STRATEGY_FILE.read_text())
+        except Exception:
+            return {}
+
+    def _init_risk_managers(self):
+        """Initialize trailing stop and partial exit managers."""
+        try:
+            from tradingagents.risk.trailing_stop import TrailingStopManager
+            from tradingagents.risk.partial_exit import PartialExitManager
+            trail_pct = self._strategy.get("trailing_stop", {}).get("trail_pct", 0.02)
+            self._trail_mgr = TrailingStopManager(trail_pct=trail_pct)
+            self._partial_mgr = PartialExitManager()
+            log.info(f"Risk managers loaded (trail: {trail_pct*100:.1f}%)")
+        except Exception as e:
+            log.warning(f"Risk managers not available: {e}")
 
     def _load_entry_prices(self) -> dict:
         """Load entry prices from open trade files for P&L calculation."""
@@ -81,10 +108,14 @@ class AlpacaStream:
             return []
 
     async def handle_trade(self, trade):
-        """Handle real-time trade tick."""
+        """Handle real-time trade tick with dynamic trailing stops."""
         sym = trade.symbol
         price = float(trade.price)
         ts = datetime.now().isoformat()
+
+        # Skip symbols already closed this session
+        if sym in self._closed_symbols:
+            return
 
         entry_prices = self._load_entry_prices()
         entry = entry_prices.get(sym, 0)
@@ -98,14 +129,42 @@ class AlpacaStream:
         }
         self._update_prices_file()
 
-        # Check exit conditions
-        if entry > 0:
-            if change_pct >= 8.0:
-                log.warning(f"🎯 TARGET HIT: {sym} +{change_pct:.2f}% — triggering close")
-                self._trigger_close(sym, "TARGET_HIT")
-            elif change_pct <= -3.0:
-                log.warning(f"🛑 STOP HIT: {sym} {change_pct:.2f}% — triggering close")
+        # Exit checks (only for open positions with known entry)
+        if entry <= 0:
+            return
+
+        pos_cfg = self._strategy.get("position", {})
+        target_pct = pos_cfg.get("target_pct", 0.06) * 100
+        stop_pct = pos_cfg.get("stop_pct", 0.02) * 100
+        partial_trigger = pos_cfg.get("partial_exit_trigger", 0.04) * 100
+
+        # 1) Trailing stop (dynamic, tightens as price rises)
+        if self._trail_mgr:
+            stop_price = self._trail_mgr.update(sym, price)
+            if price <= stop_price and stop_price > 0:
+                log.warning(f"🛑 TRAILING STOP: {sym} ${price:.2f} <= stop ${stop_price:.2f} (HWM: ${self._trail_mgr.get_hwm(sym):.2f})")
+                self._closed_symbols.add(sym)
                 self._trigger_close(sym, "STOP_HIT")
+                return
+
+        # 2) Partial exit at +4% (configurable)
+        if self._partial_mgr and not self._partial_mgr.has_taken_partial(sym):
+            if change_pct >= partial_trigger:
+                log.warning(f"📊 PARTIAL EXIT: {sym} +{change_pct:.1f}% — take 50% off")
+                # Don't close here — just alert. Trade gate handles partial.
+                self._trigger_partial(sym, price)
+
+        # 3) Hard target
+        if change_pct >= target_pct:
+            log.warning(f"🎯 TARGET HIT: {sym} +{change_pct:.2f}% — triggering close")
+            self._closed_symbols.add(sym)
+            self._trigger_close(sym, "TARGET_HIT")
+
+        # 4) Hard stop (backup if trailing stop fails)
+        elif change_pct <= -stop_pct:
+            log.warning(f"🛑 STOP HIT: {sym} {change_pct:.2f}% — triggering close")
+            self._closed_symbols.add(sym)
+            self._trigger_close(sym, "STOP_HIT")
 
     def _trigger_close(self, sym: str, reason: str):
         """Trigger close_position.py for a symbol."""
@@ -120,6 +179,23 @@ class AlpacaStream:
             log.info(f"Triggered close_position.py for {sym} ({reason}) PID={result.pid}")
         except Exception as e:
             log.error(f"Failed to trigger close for {sym}: {e}")
+
+    def _trigger_partial(self, sym: str, price: float):
+        """Trigger partial exit (50% off) via close_position.py."""
+        import subprocess
+        try:
+            result = subprocess.Popen([
+                sys.executable,
+                str(REPO_ROOT / "scripts" / "close_position.py"),
+                "--ticker", sym,
+                "--reason", "PARTIAL_EXIT",
+                "--exit-price", str(price),
+            ])
+            log.info(f"Triggered partial exit for {sym} at ${price:.2f} PID={result.pid}")
+            if self._partial_mgr:
+                self._partial_mgr.mark_partial_taken(sym, price, 0)
+        except Exception as e:
+            log.error(f"Failed to trigger partial for {sym}: {e}")
 
     async def run(self, symbols: list = None):
         """Start the WebSocket stream."""
@@ -144,6 +220,9 @@ class AlpacaStream:
                         break
                 if not symbols:
                     return
+
+        # Init risk managers
+        self._init_risk_managers()
 
         log.info(f"Starting stream for: {symbols}")
 
