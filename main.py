@@ -8,9 +8,9 @@ load_dotenv()
 
 # Create a custom config
 config = DEFAULT_CONFIG.copy()
-config["deep_think_llm"] = "gpt-5-mini"  # Use a different model
-config["quick_think_llm"] = "gpt-5-mini"  # Use a different model
-config["max_debate_rounds"] = 1  # Increase debate rounds
+config["deep_think_llm"] = "claude-opus-4-6"  # Best reasoning for trade debates
+config["quick_think_llm"] = "claude-sonnet-4-6"  # Fast analysis for scans
+config["max_debate_rounds"] = 2  # Bull vs Bear debate rounds
 
 # Configure data vendors (default uses yfinance, no extra API keys needed)
 config["data_vendors"] = {

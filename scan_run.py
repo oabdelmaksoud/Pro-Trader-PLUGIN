@@ -7,7 +7,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import feedparser
 
 # Step 1 — Load dedup cache
-dedup_path = Path('/Users/omarabdelmaksoud/.openclaw/workspace/prj-002/protrader/logs/news_dedup.json')
+REPO = Path(__file__).resolve().parent
+dedup_path = REPO / 'logs' / 'news_dedup.json'
 dedup = json.loads(dedup_path.read_text()) if dedup_path.exists() else {}
 now = time.time()
 print(f'[DEDUP] {len(dedup)} entries loaded', flush=True)
@@ -81,7 +82,7 @@ for s in rss_stories:
     print(f'  RSS [{s["source"][:30]}]: {s["title"][:90]}', flush=True)
 
 # Step 3 — Finnhub
-env_path = Path('/Users/omarabdelmaksoud/.openclaw/workspace/prj-002/protrader/.env')
+env_path = REPO / '.env'
 FINNHUB_KEY = ''
 if env_path.exists():
     for line in env_path.read_text().splitlines():
