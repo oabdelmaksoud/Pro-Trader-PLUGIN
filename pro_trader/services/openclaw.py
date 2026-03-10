@@ -1,19 +1,24 @@
 """
 OpenClaw Integration Layer — centralized messaging for Pro-Trader.
 
-Compatible with openclaw v2026.3.7+ (latest as of March 2026).
+Compatible with openclaw v2026.3.8 (latest stable, March 9 2026).
 
 OpenClaw is used exclusively as a Discord messaging bridge:
   - `openclaw message send --channel discord --target <ID> --message <TEXT>`
   - `openclaw cron list --json` / `openclaw cron trigger <ID>`
 
-Breaking changes addressed:
+Version history addressed:
+  - v2026.3.8: backup/restore, TUI theme detect, ACP provenance, Podman SELinux,
+               cron restart catch-up with missed-job replay limits, --version now
+               includes git commit hash. No changes to `message send` CLI.
   - v2026.3.7: gateway.auth.mode must be explicit (only affects gateway, not CLI)
-  - v2026.3.2: tools.profile defaults to "messaging" (only affects agent mode)
-  - v2026.3.2: registerHttpHandler removed (we don't use plugin routes)
+  - v2026.3.2: tools.profile defaults to "messaging" (only affects agent mode),
+               registerHttpHandler removed (we don't use plugin routes)
   - v2026.2.26: heartbeat DM delivery default changed (doesn't affect CLI send)
 
-All changes are gateway/agent-level — the `message send` CLI is stable.
+All changes are gateway/agent-level — the `message send` CLI is stable across all versions.
+The `cron list --json` and `cron trigger` CLIs are also stable (v2026.3.8 adds replay limits
+for missed cron jobs on restart, which improves our wake_recovery.py behavior).
 
 Usage:
     from pro_trader.services.openclaw import send_discord, send_discord_async
@@ -58,7 +63,7 @@ def send_discord(channel_id: str, message: str, timeout: int = 15) -> bool:
     """
     Send a Discord message via openclaw CLI (blocking).
 
-    Compatible with openclaw v2026.3.7+.
+    Compatible with openclaw v2026.3.8 (latest stable).
     Gracefully returns False if openclaw is not available.
 
     Args:
@@ -126,7 +131,7 @@ def list_cron_jobs() -> list[dict]:
     """
     List openclaw cron jobs.
 
-    Compatible with openclaw v2026.3.7+.
+    Compatible with openclaw v2026.3.8 (latest stable).
     """
     if not is_available():
         return []
@@ -184,7 +189,7 @@ def health_check() -> dict:
         "status": "ok" if available else "not_installed",
         "channels": len(CHANNELS),
         "notes": [
-            "Compatible with openclaw v2026.3.7+",
+            "Compatible with openclaw v2026.3.8 (latest stable, March 9 2026)",
             "Used for Discord messaging only (not agent/oracle)",
             "Graceful degradation when unavailable",
         ],

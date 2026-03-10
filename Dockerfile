@@ -11,7 +11,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
     apt-get install -y nodejs && rm -rf /var/lib/apt/lists/*
 
 # Install openclaw CLI (optional — graceful degradation if unavailable)
-RUN npm install -g openclaw@latest 2>/dev/null || echo "openclaw install skipped"
+RUN npm install -g openclaw@2026.3.8 2>/dev/null || echo "openclaw install skipped"
 
 # Copy and install Python package
 COPY pyproject.toml .

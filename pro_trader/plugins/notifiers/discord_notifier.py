@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class DiscordNotifier(NotifierPlugin):
     name = "discord"
     version = "1.0.0"
-    description = "Send trade signals to Discord via openclaw (v2026.3.7+ compatible)"
+    description = "Send trade signals to Discord via openclaw (v2026.3.8 compatible)"
 
     def __init__(self):
         self._war_room_channel = CHANNELS.get("war_room", "")
