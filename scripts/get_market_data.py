@@ -453,7 +453,85 @@ def get_polygon_movers() -> dict:
         return {"error": str(e)}
 
 
+def _load_monitor_signals(sym: str) -> dict:
+    """Load outputs from standalone monitor scripts (dark pool, whale, ETF flows, FOMC)."""
+    LOGS = Path(__file__).parent.parent / "logs"
+    signals = {}
+
+    # Dark pool activity
+    try:
+        dp = LOGS / "dark_pool_cache.json"
+        if dp.exists():
+            data = json.loads(dp.read_text())
+            if sym in data:
+                signals["dark_pool"] = data[sym]
+    except Exception:
+        pass
+
+    # Whale/insider tracker
+    try:
+        wc = LOGS / "whale_cache.json"
+        if wc.exists():
+            data = json.loads(wc.read_text())
+            if sym in data:
+                signals["whale_activity"] = data[sym]
+    except Exception:
+        pass
+
+    # ETF flows (sector rotation)
+    try:
+        ef = LOGS / "etf_flows.json"
+        if ef.exists():
+            signals["etf_flows"] = json.loads(ef.read_text())
+    except Exception:
+        pass
+
+    # FOMC state
+    try:
+        fs = LOGS / "fomc_state.json"
+        if fs.exists():
+            signals["fomc"] = json.loads(fs.read_text())
+    except Exception:
+        pass
+
+    return signals
+
+
 def gather_ticker_data(sym: str, full: bool = False) -> dict:
+    # ── Futures detection: use specialized data path ─────────────────────────
+    try:
+        from tradingagents.dataflows.futures_data import is_futures_symbol, get_futures_technicals, get_futures_quote, get_contract_spec, format_futures_context
+        if is_futures_symbol(sym):
+            spec = get_contract_spec(sym)
+            tech = get_futures_technicals(sym)
+            quote = get_futures_quote(sym)
+            data = {
+                "ticker": sym,
+                "asset_type": "futures",
+                "as_of": datetime.now().isoformat(),
+                "technicals": tech,
+                "contract_spec": {
+                    "name": spec["name"] if spec else sym,
+                    "asset_class": spec.get("asset_class", "unknown") if spec else "unknown",
+                    "margin": spec.get("margin", 0) if spec else 0,
+                    "point_value": spec.get("point_value", 0) if spec else 0,
+                    "tick_value": spec.get("tick_value", 0) if spec else 0,
+                    "exchange": spec.get("exchange", "CME") if spec else "CME",
+                } if spec else {},
+                "quote": quote,
+                "price": quote.get("price", 0) if quote else 0,
+                "news": get_news_headlines(spec.get("proxy_etf", sym) if spec else sym),
+                "market_context": _get_market_context(sym) if full else {},
+                "futures_context": format_futures_context(sym),
+                "monitor_signals": _load_monitor_signals(sym),
+            }
+            if full:
+                data["global_context"] = _get_global_context()
+                data["gov_rss_events"] = _get_gov_rss_events()
+            return data
+    except Exception:
+        pass  # Fall through to standard equity path
+
     data = {
         "ticker": sym,
         "as_of": datetime.now().isoformat(),
@@ -503,6 +581,23 @@ def gather_ticker_data(sym: str, full: bool = False) -> dict:
             data["gex_levels"] = get_gex_levels(sym)
         except Exception:
             data["gex_levels"] = {}
+        # Earnings whisper (consensus vs whisper EPS)
+        try:
+            from tradingagents.dataflows.earnings_whisper import get_whisper_number
+            data["earnings_whisper"] = get_whisper_number(sym)
+        except Exception:
+            data["earnings_whisper"] = {}
+        # Reddit sentiment (WSB, r/stocks, r/investing)
+        try:
+            from tradingagents.dataflows.reddit_sentiment import get_wsb_mentions, is_available as reddit_available
+            if reddit_available():
+                data["reddit_sentiment"] = get_wsb_mentions(sym, hours_back=24)
+            else:
+                data["reddit_sentiment"] = {"note": "Reddit credentials not configured"}
+        except Exception:
+            data["reddit_sentiment"] = {}
+        # Monitor outputs (dark pool, whale, ETF flows, FOMC)
+        data["monitor_signals"] = _load_monitor_signals(sym)
     return data
 
 
@@ -523,6 +618,21 @@ def score_ticker(data: dict) -> float:
     tech = data.get("technicals", {})
     if tech.get("error"):
         return 0.0
+
+    # ── Futures-specific scoring adjustments ──────────────────────────────────
+    if data.get("asset_type") == "futures":
+        spec = data.get("contract_spec", {})
+        margin = spec.get("margin", 0)
+        # Margin affordability bonus (lower margin = more accessible for $500 account)
+        if 0 < margin <= 300:
+            score += 0.5  # very affordable, good margin buffer
+        elif margin <= 500:
+            score += 0.3  # affordable
+        elif margin > 1000:
+            score -= 0.3  # too expensive for recovery account
+        # Futures get slight boost for 24h liquidity
+        if spec.get("asset_class") in ("index", "fx"):
+            score += 0.2  # high liquidity markets
 
     # Technical signals
     if tech.get("above_sma20"):
@@ -657,6 +767,64 @@ def score_ticker(data: dict) -> float:
                 score -= 0.2
             if gex.get("put_wall_distance_pct", 99) < 1.0:
                 score += 0.2
+    except Exception:
+        pass
+
+    # Earnings whisper — high whisper = bar set too high, risk of miss
+    try:
+        ew = data.get("earnings_whisper", {})
+        if ew.get("bar_higher_than_consensus"):
+            score -= 0.4  # market expects beat → risk of disappointment
+        elif ew.get("spread_pct") is not None and ew["spread_pct"] < -5:
+            score += 0.3  # low expectations → easier to beat
+    except Exception:
+        pass
+
+    # Reddit sentiment bonus
+    try:
+        reddit = data.get("reddit_sentiment", {})
+        mention_count = reddit.get("mention_count", 0)
+        if mention_count >= 10:
+            reddit_sent = reddit.get("sentiment", "neutral")
+            if reddit_sent == "bullish":
+                score += 0.4
+            elif reddit_sent == "bearish":
+                score -= 0.3
+            # High WSB buzz = volatile, slight risk penalty
+            if mention_count >= 50:
+                score -= 0.2  # meme risk
+    except Exception:
+        pass
+
+    # Dark pool large block activity
+    try:
+        monitors = data.get("monitor_signals", {})
+        dp = monitors.get("dark_pool", {})
+        if dp.get("block_trades_today", 0) >= 3:
+            score += 0.3  # institutional accumulation signal
+    except Exception:
+        pass
+
+    # Whale/insider from whale_tracker
+    try:
+        monitors = data.get("monitor_signals", {})
+        whale = monitors.get("whale_activity", {})
+        if whale.get("insider_buys", 0) >= 2:
+            score += 0.4
+        if whale.get("unusual_options_volume"):
+            score += 0.3
+    except Exception:
+        pass
+
+    # FOMC proximity risk
+    try:
+        monitors = data.get("monitor_signals", {})
+        fomc = monitors.get("fomc", {})
+        days_to_fomc = fomc.get("days_until_next")
+        if days_to_fomc is not None and days_to_fomc <= 2:
+            score -= 0.5  # FOMC within 2 days = high volatility risk
+        elif days_to_fomc is not None and days_to_fomc <= 5:
+            score -= 0.2
     except Exception:
         pass
 

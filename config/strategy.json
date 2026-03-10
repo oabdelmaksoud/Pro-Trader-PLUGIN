@@ -1,5 +1,5 @@
 {
-  "_comment": "CooperCorp PRJ-002 Strategy Configuration",
+  "_comment": "CooperCorp PRJ-002 Strategy Configuration — RECOVERY MODE ($500 account)",
   "scoring": {
     "weights": {
       "catalyst": 0.3,
@@ -10,33 +10,32 @@
     },
     "thresholds": {
       "default": {
-        "score": 7.0,
-        "conviction": 7
+        "score": 8.0,
+        "conviction": 8
       },
       "last_window": {
-        "score": 7.5,
-        "conviction": 8
+        "score": 8.5,
+        "conviction": 9
       },
       "tier3_bonus": 0.5
     }
   },
   "position": {
-    "max_positions": 2,
-    "default_pct": 0.05,
-    "stop_pct": 0.03,
-    "target_pct": 0.08,
+    "max_positions": 1,
+    "default_pct": 0.15,
+    "stop_pct": 0.02,
+    "target_pct": 0.06,
     "partial_exit_pct": 0.5,
-    "partial_exit_trigger": 0.05,
+    "partial_exit_trigger": 0.04,
     "conviction_scaling": {
-      "7": 0.03,
-      "8": 0.04,
-      "9": 0.05,
-      "10": 0.06
+      "8": 0.10,
+      "9": 0.15,
+      "10": 0.20
     }
   },
   "risk": {
-    "max_daily_loss_pct": 0.05,
-    "account_floor": 90000,
+    "max_daily_loss_pct": 0.03,
+    "account_floor": 400,
     "vix_thresholds": {
       "low": {
         "vix_max": 20,
@@ -44,150 +43,103 @@
       },
       "medium": {
         "vix_max": 30,
-        "size_multiplier": 0.7
+        "size_multiplier": 0.5
       },
       "high": {
         "vix_max": 999,
-        "size_multiplier": 0.4
+        "size_multiplier": 0.0
       }
     },
     "correlation_sectors": {
       "semis": [
-        "NVDA",
-        "AMD",
-        "INTC",
-        "QCOM",
-        "AVGO",
-        "MRVL",
-        "ON",
-        "AMAT",
-        "LRCX",
-        "KLAC",
-        "SMCI",
-        "ARM"
+        "NVDA", "AMD", "INTC", "QCOM", "AVGO", "MRVL", "ON", "AMAT", "LRCX", "KLAC", "SMCI", "ARM"
       ],
       "mega_tech": [
-        "MSFT",
-        "AAPL",
-        "GOOGL",
-        "META",
-        "AMZN"
+        "MSFT", "AAPL", "GOOGL", "META", "AMZN"
       ],
       "fintech": [
-        "COIN",
-        "HOOD",
-        "SQ",
-        "PYPL"
+        "COIN", "HOOD", "SQ", "PYPL"
       ],
       "biotech": [
-        "MRNA",
-        "BIIB",
-        "REGN",
-        "VRTX",
-        "LLY"
+        "MRNA", "BIIB", "REGN", "VRTX", "LLY"
       ]
     }
   },
+  "futures_position": {
+    "max_contracts": 1,
+    "max_margin_pct": 0.60,
+    "stop_ticks_default": 20,
+    "target_ticks_default": 40,
+    "margin_buffer_pct": 1.5,
+    "_comment": "Never use more than 60% of account as margin. 1 contract max in recovery."
+  },
   "trailing_stop": {
-    "trail_pct": 0.03,
-    "activate_after_pct": 0.02
+    "trail_pct": 0.02,
+    "activate_after_pct": 0.015
   },
   "eod": {
     "force_close_time": "15:45",
     "exempt_tags": [
       "swing",
-      "options"
+      "options",
+      "futures"
     ]
   },
   "goal": {
-    "target_value": 1000000,
-    "starting_value": 100499,
-    "multiplier": 9.95,
-    "note": "Reach $1,000,000 from $100,499 paper trading account"
+    "target_value": 53874,
+    "starting_value": 500,
+    "recovery_mode": true,
+    "phases": {
+      "phase1": {
+        "target": 1000,
+        "note": "$500 → $1,000 — Capital preservation, only A+ setups, 1 position max"
+      },
+      "phase2": {
+        "target": 5000,
+        "note": "$1,000 → $5,000 — Controlled growth, slightly larger sizing allowed"
+      },
+      "phase3": {
+        "target": 25000,
+        "note": "$5,000 → $25,000 — Normal operations, 2 positions allowed"
+      },
+      "phase4": {
+        "target": 53874,
+        "note": "$25,000 → $53,874 — Full recovery, standard strategy"
+      }
+    }
   },
   "watchlist": {
     "tier1": [
-      "NVDA",
-      "MSFT",
-      "AAPL",
-      "GOOGL",
-      "META",
-      "AMZN",
-      "AMD",
-      "TSLA",
-      "PLTR",
-      "CRWD",
-      "SMCI",
-      "ARM",
-      "MSTR"
+      "NVDA", "MSFT", "AAPL", "GOOGL", "META", "AMZN", "AMD", "TSLA", "PLTR", "CRWD", "SMCI", "ARM", "MSTR"
     ],
     "tier2_tech": [
-      "ORCL",
-      "CRM",
-      "NOW",
-      "SNOW",
-      "NET",
-      "MDB",
-      "DDOG",
-      "SHOP",
-      "UBER",
-      "ABNB",
-      "RBLX"
+      "ORCL", "CRM", "NOW", "SNOW", "NET", "MDB", "DDOG", "SHOP", "UBER", "ABNB", "RBLX"
     ],
     "tier2_semis": [
-      "QCOM",
-      "AVGO",
-      "INTC",
-      "MRVL",
-      "ON",
-      "TXN",
-      "AMAT",
-      "LRCX",
-      "KLAC"
+      "QCOM", "AVGO", "INTC", "MRVL", "ON", "TXN", "AMAT", "LRCX", "KLAC"
     ],
     "tier2_biotech": [
-      "MRNA",
-      "BIIB",
-      "REGN",
-      "VRTX",
-      "LLY",
-      "PFE"
+      "MRNA", "BIIB", "REGN", "VRTX", "LLY", "PFE"
     ],
     "tier2_finance": [
-      "JPM",
-      "GS",
-      "BAC",
-      "MS",
-      "V",
-      "MA",
-      "COIN",
-      "HOOD"
+      "JPM", "GS", "BAC", "MS", "V", "MA", "COIN", "HOOD"
     ],
     "tier2_energy": [
-      "XOM",
-      "CVX",
-      "OXY",
-      "SLB"
+      "XOM", "CVX", "OXY", "SLB"
     ],
     "tier2_consumer": [
-      "WMT",
-      "COST",
-      "TGT",
-      "NKE",
-      "LULU"
+      "WMT", "COST", "TGT", "NKE", "LULU"
     ],
     "etfs": [
-      "SPY",
-      "QQQ",
-      "IWM",
-      "SMH",
-      "XLK",
-      "XLF",
-      "XLE",
-      "ARKK",
-      "SOXL",
-      "TQQQ"
+      "SPY", "QQQ", "IWM", "SMH", "XLK", "XLF", "XLE", "SOXL", "TQQQ"
     ],
+    "futures_affordable": [
+      "/MET", "/MCD", "/M6A", "/M6B", "/M6E", "/BFF", "/1OZ", "/MSF", "/MNG"
+    ],
+    "futures_index": [
+      "/MES", "/MNQ", "/MYM", "/MCL"
+    ],
+    "_futures_comment": "affordable = under $700 margin (tradeable on $500 account). index = higher margin, available phase2+",
     "focus": [
       "ARM"
     ],
@@ -195,22 +147,10 @@
   },
   "scan": {
     "tier1_tickers": [
-      "NVDA",
-      "MSFT",
-      "AAPL",
-      "GOOGL",
-      "META",
-      "AMZN",
-      "AMD",
-      "TSLA",
-      "PLTR",
-      "CRWD",
-      "SMCI",
-      "ARM",
-      "MSTR"
+      "NVDA", "MSFT", "AAPL", "GOOGL", "META", "AMZN", "AMD", "TSLA", "PLTR", "CRWD", "SMCI", "ARM", "MSTR"
     ],
     "default_timeout_seconds": 900,
-    "pre_score_min": 5.5,
-    "max_candidates_per_scan": 3
+    "pre_score_min": 6.5,
+    "max_candidates_per_scan": 2
   }
 }

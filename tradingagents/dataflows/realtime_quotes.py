@@ -38,15 +38,32 @@ if _env_path.exists():
 
 # ── Futures/commodity proxy map ──────────────────────────────────────────────
 PROXY_MAP = {
+    # Macro futures → ETF proxies
     "ES=F":      {"proxy": "SPY",  "label": "S&P 500 Futures",  "scale": 10.0},
     "NQ=F":      {"proxy": "QQQ",  "label": "Nasdaq Futures",    "scale": 40.0},
     "YM=F":      {"proxy": "DIA",  "label": "Dow Futures",       "scale": 100.0},
     "GC=F":      {"proxy": "GLD",  "label": "Gold",              "scale": 9.3},
     "SI=F":      {"proxy": "SLV",  "label": "Silver",            "scale": 1.0},
+    "CL=F":      {"proxy": "USO",  "label": "Crude Oil",         "scale": 12.0},
+    "NG=F":      {"proxy": "UNG",  "label": "Natural Gas",       "scale": 1.0},
     "DX-Y.NYB":  {"proxy": "UUP",  "label": "US Dollar Index",   "scale": None},
     "TLT":       {"proxy": "TLT",  "label": "Bonds (TLT)",       "scale": None},
     "BTC-USD":   {"proxy": "BTC/USD", "label": "Bitcoin",        "scale": None},
     "ETH-USD":   {"proxy": "ETH/USD", "label": "Ethereum",       "scale": None},
+    # Micro futures → same ETF proxies (smaller multipliers)
+    "/MES":      {"proxy": "SPY",  "label": "Micro S&P 500",     "scale": 10.0},
+    "/MNQ":      {"proxy": "QQQ",  "label": "Micro Nasdaq",      "scale": 40.0},
+    "/MYM":      {"proxy": "DIA",  "label": "Micro Dow",         "scale": 100.0},
+    "/MCL":      {"proxy": "USO",  "label": "Micro Crude",       "scale": 12.0},
+    "/MNG":      {"proxy": "UNG",  "label": "Micro Nat Gas",     "scale": 1.0},
+    "/1OZ":      {"proxy": "GLD",  "label": "1oz Gold",          "scale": 9.3},
+    "/MET":      {"proxy": "ETH-USD", "label": "Micro Ether",    "scale": None},
+    "/BFF":      {"proxy": "BTC-USD", "label": "Bitcoin Friday",  "scale": None},
+    "/M6E":      {"proxy": "FXE",  "label": "Micro Euro",        "scale": None},
+    "/M6B":      {"proxy": "FXB",  "label": "Micro GBP",         "scale": None},
+    "/M6A":      {"proxy": "FXA",  "label": "Micro AUD",         "scale": None},
+    "/MCD":      {"proxy": "FXC",  "label": "Micro CAD",         "scale": None},
+    "/MSF":      {"proxy": "UUP",  "label": "Micro CHF",         "scale": None},
 }
 
 # Crypto symbol mapping for Alpaca

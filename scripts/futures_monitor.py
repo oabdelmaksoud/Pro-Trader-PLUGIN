@@ -27,6 +27,19 @@ FUTURES = {
     "YM=F": "YM (Dow)",
 }
 
+# Micro futures affordable on $500 account (margin < $700)
+MICRO_FUTURES = {
+    "ETH=F":  {"label": "Micro Ether (/MET)",    "margin": 77},
+    "CAD=X":  {"label": "Micro CAD (/MCD)",       "margin": 110},
+    "AUD=X":  {"label": "Micro AUD (/M6A)",       "margin": 209},
+    "GBP=X":  {"label": "Micro GBP (/M6B)",       "margin": 220},
+    "EUR=X":  {"label": "Micro EUR (/M6E)",       "margin": 297},
+    "BTC=F":  {"label": "Bitcoin Friday (/BFF)",   "margin": 365},
+    "GC=F":   {"label": "1oz Gold (/1OZ)",         "margin": 472},
+    "CHF=X":  {"label": "Micro CHF (/MSF)",        "margin": 495},
+    "NG=F":   {"label": "Micro NatGas (/MNG)",     "margin": 633},
+}
+
 
 def post_to_discord(msg: str) -> None:
     try:
@@ -102,6 +115,19 @@ def main():
 
     if geopolitical:
         lines.append("⚠️ Geopolitical premium: Long energy/defense.")
+
+    # Micro futures scan for $500 account
+    lines.append("")
+    lines.append("📊 Micro Futures (affordable on $500):")
+    micro_movers = []
+    for symbol, info in MICRO_FUTURES.items():
+        mdata = get_future_data(symbol)
+        if mdata["ok"] and abs(mdata["change_pct"]) > 0.3:
+            sign = "+" if mdata["change_pct"] >= 0 else ""
+            micro_movers.append((info["label"], mdata["change_pct"], info["margin"]))
+            lines.append(f"  {info['label']}: {sign}{mdata['change_pct']:.2f}% (margin: ${info['margin']})")
+    if not micro_movers:
+        lines.append("  No significant micro futures moves yet.")
 
     lines.append("")
     lines.append("— Cooper 🦅 | Pre-Week Brief")
