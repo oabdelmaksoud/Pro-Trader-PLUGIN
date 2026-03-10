@@ -1,9 +1,15 @@
 """Basic smoke tests for AlpacaBroker and core modules."""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env")
+
+import pytest
+
+_has_alpaca_creds = bool(os.environ.get("ALPACA_API_KEY") and os.environ.get("ALPACA_SECRET_KEY"))
+_alpaca_reason = "ALPACA_API_KEY / ALPACA_SECRET_KEY not set"
 
 
 def test_imports():
@@ -17,6 +23,7 @@ def test_imports():
     from tradingagents.utils.market_hours import is_market_open, is_market_holiday
 
 
+@pytest.mark.skipif(not _has_alpaca_creds, reason=_alpaca_reason)
 def test_broker_connectivity():
     from tradingagents.brokers.alpaca import AlpacaBroker
     b = AlpacaBroker()
@@ -26,6 +33,7 @@ def test_broker_connectivity():
     assert bp > 0, "Buying power should be positive"
 
 
+@pytest.mark.skipif(not _has_alpaca_creds, reason=_alpaca_reason)
 def test_circuit_breaker():
     from tradingagents.brokers.alpaca import AlpacaBroker
     from tradingagents.risk.circuit_breaker import CircuitBreaker
