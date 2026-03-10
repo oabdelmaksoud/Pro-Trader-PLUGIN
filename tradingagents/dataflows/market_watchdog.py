@@ -9,6 +9,9 @@ Detects:
   - Volume spikes:   3× rolling average in 1 minute
   - Trailing stop breaches on open positions
   - Partial exit triggers (+4%) on open positions
+  - Candlestick patterns (20 patterns across 6 timeframes)
+  - Chart patterns (H&S, double top/bottom, flags, triangles, wedges)
+  - Multi-timeframe confluence scoring
 
 Alerts go to Discord instantly via openclaw CLI.
 Writes real-time data to logs/watchdog_prices.json for dashboard.
@@ -141,6 +144,17 @@ class MarketWatchdog:
         self._entry_prices: dict[str, float] = {}
         self._trail_mgr = None
         self._partial_mgr = None
+        self._mtf_analyzer = None
+        self._pattern_alert_cooldown: dict[str, float] = {}
+
+    def _init_mtf_analyzer(self):
+        """Initialize multi-timeframe pattern analyzer."""
+        try:
+            from tradingagents.technical.mtf_analyzer import MTFAnalyzer
+            self._mtf_analyzer = MTFAnalyzer()
+            log.info("MTF Analyzer loaded — candle + chart pattern detection active")
+        except Exception as e:
+            log.warning(f"MTF Analyzer not available: {e}")
 
     def _load_watchlist(self) -> list[str]:
         """Load all watchlist tickers from strategy.json."""
@@ -347,8 +361,71 @@ class MarketWatchdog:
         if len(self.buffers) > 0 and sum(len(b.ticks) for b in self.buffers.values()) % 50 == 0:
             self._write_prices()
 
+        # Feed tick into MTF analyzer (builds candles across all timeframes)
+        if self._mtf_analyzer:
+            completed = self._mtf_analyzer.on_tick(sym, price, size, ts)
+            # On candle completion, run pattern scan for significant timeframes
+            for tf, candle in completed:
+                if tf in ("5m", "15m", "1h", "4h"):
+                    self._on_candle_complete(sym, tf)
+
         # Run alert checks
         self._check_alerts(sym, buf)
+
+    def _on_candle_complete(self, sym: str, timeframe: str):
+        """
+        Called when a candle completes on a significant timeframe.
+        Runs pattern detection and alerts on high-strength patterns.
+        """
+        if not self._mtf_analyzer:
+            return
+
+        # Cooldown: 1 pattern alert per symbol per timeframe per 10 min
+        key = f"{sym}:{timeframe}:pattern"
+        now = time.time()
+        if key in self._pattern_alert_cooldown:
+            if now - self._pattern_alert_cooldown[key] < 600:
+                return
+        try:
+            from tradingagents.technical.candle_patterns import scan_patterns
+            from tradingagents.technical.chart_patterns import scan_chart_patterns
+
+            builder = self._mtf_analyzer._get_builder(sym)
+            candles = builder.get_candles(timeframe, count=100)
+            if len(candles) < 5:
+                return
+
+            # Candle patterns
+            cpats = scan_patterns(candles, max_lookback=2)
+            strong_candle = [p for p in cpats if p["strength"] >= 2]
+
+            # Chart patterns (need 15+ candles)
+            chart_pats = []
+            if len(candles) >= 15:
+                chart_pats = scan_chart_patterns(candles)
+
+            if not strong_candle and not chart_pats:
+                return
+
+            self._pattern_alert_cooldown[key] = now
+
+            # Build alert message
+            parts = [f"[{timeframe}]"]
+            for p in strong_candle[:3]:
+                icon = "🟢" if p["type"] == "bullish" else "🔴"
+                parts.append(f"{icon} {p['name']}")
+            for p in chart_pats[:2]:
+                icon = "🟢" if p["type"] == "bullish" else "🔴"
+                tgt = p.get("target_price", 0)
+                conf = int(p.get("confidence", 0) * 100)
+                parts.append(f"{icon} {p['name']} → ${tgt:.2f} ({conf}%)")
+
+            price = candles[-1].close
+            msg = f"${price:.2f} — " + " | ".join(parts)
+            self._send_alert(sym, "PATTERN", msg)
+
+        except Exception as e:
+            log.debug(f"Pattern scan error for {sym}/{timeframe}: {e}")
 
     def _write_prices(self):
         try:
@@ -379,8 +456,9 @@ class MarketWatchdog:
             log.error("No symbols to watch")
             return
 
-        # Init risk managers
+        # Init risk managers + MTF analyzer
         self._init_risk_managers()
+        self._init_mtf_analyzer()
         # Reload entry prices
         self._load_open_positions()
 
@@ -420,6 +498,15 @@ class MarketWatchdog:
 
             asyncio.ensure_future(flush_prices())
 
+            # Periodic MTF candle data flush (every 60s)
+            async def flush_candles():
+                while self.running:
+                    await asyncio.sleep(60)
+                    if self._mtf_analyzer:
+                        self._mtf_analyzer.flush()
+
+            asyncio.ensure_future(flush_candles())
+
             log.info("Watchdog running. Ctrl+C to stop.")
             await wss._run_forever()
 
@@ -429,6 +516,8 @@ class MarketWatchdog:
             if PID_FILE.exists():
                 PID_FILE.unlink()
             self._write_prices()
+            if self._mtf_analyzer:
+                self._mtf_analyzer.flush()
             log.info("Watchdog stopped")
 
     def stop(self):
