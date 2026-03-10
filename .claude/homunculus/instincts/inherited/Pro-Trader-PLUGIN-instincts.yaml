@@ -1,0 +1,603 @@
+# Instincts generated from https://github.com/oabdelmaksoud/Pro-Trader-PLUGIN
+# Generated: 2026-03-10T11:14:12.987Z
+# Version: 2.0
+
+---
+id: Pro-Trader-PLUGIN-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader PLUGIN Commit Length
+
+## Action
+
+Write moderate-length commit messages (~50 characters)
+
+## Evidence
+
+- Average commit message length: 53 chars
+- Based on 166 commits
+
+---
+id: Pro-Trader-PLUGIN-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader PLUGIN Naming Files
+
+## Action
+
+Use snake_case naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: snake_case
+
+---
+id: Pro-Trader-PLUGIN-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader PLUGIN Export Style
+
+## Action
+
+Prefer mixed exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: mixed
+
+---
+id: Pro-Trader-PLUGIN-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader PLUGIN Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: Pro-Trader-PLUGIN-workflow-feature-development
+trigger: "when implementing a new feature"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader PLUGIN Workflow Feature Development
+
+## Action
+
+Follow the feature-development workflow:
+1. Add feature implementation
+2. Add tests for feature
+3. Update documentation
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~20x per month
+- Files: **/*.test.*
+
+---
+id: Pro-Trader-PLUGIN-workflow-plugin-development-cycle
+trigger: "when doing plugin development cycle"
+confidence: 0.65
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader PLUGIN Workflow Plugin Development Cycle
+
+## Action
+
+Follow the plugin-development-cycle workflow:
+1. Create plugin implementation in pro_trader/plugins/{category}/{name}_plugin.py
+2. Update pro_trader/core/registry.py to register the plugin
+3. Add plugin to pyproject.toml entry_points or dependencies
+4. Create corresponding test file in tests/test_{name}_plugin.py
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~3x per month
+- Files: pro_trader/plugins/{category}/{name}_plugin.py, pro_trader/core/registry.py, pyproject.toml
+
+---
+id: Pro-Trader-PLUGIN-workflow-data-source-integration
+trigger: "when doing data source integration"
+confidence: 0.7
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader PLUGIN Workflow Data Source Integration
+
+## Action
+
+Follow the data-source-integration workflow:
+1. Create data fetching module in tradingagents/dataflows/{source}_data.py
+2. Wire into scripts/get_market_data.py with scoring logic
+3. Update scripts/full_pipeline_scan.py to include in agent context
+4. Add to intelligence context loading functions
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~4x per month
+- Files: tradingagents/dataflows/{source}_data.py, scripts/get_market_data.py, scripts/full_pipeline_scan.py
+
+---
+id: Pro-Trader-PLUGIN-workflow-monitoring-script-creation
+trigger: "when doing monitoring script creation"
+confidence: 0.65
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader PLUGIN Workflow Monitoring Script Creation
+
+## Action
+
+Follow the monitoring-script-creation workflow:
+1. Create monitoring script in scripts/{name}_monitor.py
+2. Add state tracking in logs/{name}_state.json
+3. Wire into cron scheduling system
+4. Add Discord alert posting functionality
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~3x per month
+- Files: scripts/{name}_monitor.py, logs/{name}_state.json
+
+---
+id: Pro-Trader-PLUGIN-workflow-trade-execution-enhancement
+trigger: "when doing trade execution enhancement"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader PLUGIN Workflow Trade Execution Enhancement
+
+## Action
+
+Follow the trade-execution-enhancement workflow:
+1. Update scripts/trade_gate.py with new gate logic
+2. Modify scripts/close_position.py for exit handling
+3. Update config/strategy.json with new parameters
+4. Add state tracking in logs/ files
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: scripts/trade_gate.py, scripts/close_position.py, config/strategy.json
+
+---
+id: Pro-Trader-PLUGIN-workflow-dashboard-feature-addition
+trigger: "when doing dashboard feature addition"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader PLUGIN Workflow Dashboard Feature Addition
+
+## Action
+
+Follow the dashboard-feature-addition workflow:
+1. Update dashboard/index.html with new UI components
+2. Add corresponding API endpoints in dashboard/server.py
+3. Implement SSE streaming if real-time updates needed
+4. Add data fetching from trading system logs/APIs
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: dashboard/index.html, dashboard/server.py
+
+---
+id: Pro-Trader-PLUGIN-workflow-documentation-overhaul
+trigger: "when doing documentation overhaul"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader PLUGIN Workflow Documentation Overhaul
+
+## Action
+
+Follow the documentation-overhaul workflow:
+1. Rewrite README.md with current architecture
+2. Add or update SKILL.md/AGENTS.md for OpenClaw compatibility
+3. Include system diagrams and workflow descriptions
+4. Update installation and usage instructions
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: README.md, SKILL.md, AGENTS.md
+
+---
+id: Pro-Trader-PLUGIN-workflow-log-state-management
+trigger: "when doing log state management"
+confidence: 0.75
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader PLUGIN Workflow Log State Management
+
+## Action
+
+Follow the log-state-management workflow:
+1. Create new JSON log file in logs/{feature}_state.json or logs/{feature}_cache.json
+2. Implement state read/write logic in relevant scripts
+3. Add cleanup and maintenance logic for log rotation
+4. Wire into monitoring or execution scripts
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~5x per month
+- Files: logs/{feature}_state.json, logs/{feature}_cache.json, scripts/{related}_script.py
+
+---
+id: pro-trader-snake-case-files
+trigger: "When creating new files in Pro-Trader-PLUGIN"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader Snake Case Files
+
+## Action
+
+Use snake_case naming convention for file names
+
+## Evidence
+
+- Files like options_chain.py, discord_signal_card.py
+- Consistent pattern across tradingagents/ folder
+
+---
+id: pro-trader-camel-case-functions
+trigger: "When defining functions in Pro-Trader-PLUGIN"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader Camel Case Functions
+
+## Action
+
+Use camelCase naming convention for function names
+
+## Evidence
+
+- Detected camelCase pattern in codeStyle analysis
+- Function naming convention established
+
+---
+id: pro-trader-pascal-case-classes
+trigger: "When defining classes in Pro-Trader-PLUGIN"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader Pascal Case Classes
+
+## Action
+
+Use PascalCase naming convention for class names
+
+## Evidence
+
+- Detected PascalCase pattern in codeStyle analysis
+- Class naming convention established
+
+---
+id: pro-trader-screaming-snake-constants
+trigger: "When defining constants in Pro-Trader-PLUGIN"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader Screaming Snake Constants
+
+## Action
+
+Use SCREAMING_SNAKE_CASE naming convention for constants
+
+## Evidence
+
+- Detected SCREAMING_SNAKE_CASE pattern in codeStyle analysis
+- Constant naming convention established
+
+---
+id: pro-trader-realtime-test-pattern
+trigger: "When adding realtime functionality in Pro-Trader-PLUGIN"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader Realtime Test Pattern
+
+## Action
+
+Create comprehensive test suite with passing status indicators in commit message
+
+## Evidence
+
+- Commit: test: add realtime plugin tests (12 tests, all passing)
+- Pattern of including test counts in commits
+
+---
+id: pro-trader-conventional-commits
+trigger: "When committing changes in Pro-Trader-PLUGIN"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader Conventional Commits
+
+## Action
+
+Use conventional commit format with prefixes: feat, fix, docs, chore, test, refactor
+
+## Evidence
+
+- All example commits use conventional format
+- Mixed prefixes: feat, fix, docs, chore observed
+
+---
+id: pro-trader-commit-length-limit
+trigger: "When writing commit messages in Pro-Trader-PLUGIN"
+confidence: 0.7
+domain: git
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader Commit Length Limit
+
+## Action
+
+Keep commit messages around 53 characters average length
+
+## Evidence
+
+- averageLength: 53 from commit analysis
+- Consistent medium-length commit messages
+
+---
+id: pro-trader-plugin-creation-workflow
+trigger: "When adding new trading functionality to Pro-Trader-PLUGIN"
+confidence: 0.92
+domain: workflow
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader Plugin Creation Workflow
+
+## Action
+
+Create plugin in pro_trader/plugins/{category}/{name}_plugin.py, update registry, add to pyproject.toml, create test file
+
+## Evidence
+
+- plugin-development-cycle workflow with 0.92 confidence
+- Frequency: ~3x/month pattern
+
+---
+id: pro-trader-data-source-integration
+trigger: "When integrating new data source for trading decisions"
+confidence: 0.88
+domain: workflow
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader Data Source Integration
+
+## Action
+
+Create module in tradingagents/dataflows/{source}_data.py, wire to scripts/get_market_data.py, update full_pipeline_scan.py
+
+## Evidence
+
+- data-source-integration workflow with 0.88 confidence
+- Files: options_chain.py, get_market_data.py pattern
+
+---
+id: pro-trader-monitoring-script-creation
+trigger: "When adding automated monitoring for market events"
+confidence: 0.85
+domain: workflow
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader Monitoring Script Creation
+
+## Action
+
+Create script in scripts/{name}_monitor.py with state tracking in logs/{name}_state.json and Discord alerts
+
+## Evidence
+
+- monitoring-script-creation workflow with 0.85 confidence
+- Pattern of scripts/ folder usage
+
+---
+id: pro-trader-trade-execution-enhancement
+trigger: "When adding new trading rules or execution logic"
+confidence: 0.87
+domain: workflow
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader Trade Execution Enhancement
+
+## Action
+
+Update scripts/trade_gate.py and scripts/close_position.py, modify config/strategy.json, add state tracking
+
+## Evidence
+
+- trade-execution-enhancement workflow with 0.87 confidence
+- Files: trade_gate.py, close_position.py exist
+
+---
+id: pro-trader-dashboard-feature-addition
+trigger: "When adding new visualization to trading dashboard"
+confidence: 0.83
+domain: workflow
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader Dashboard Feature Addition
+
+## Action
+
+Update dashboard/index.html UI and add API endpoints in dashboard/server.py with SSE streaming if needed
+
+## Evidence
+
+- dashboard-feature-addition workflow with 0.83 confidence
+- Commit: feat: trading dashboard (HTML + Python backend server)
+
+---
+id: pro-trader-openclaw-documentation
+trigger: "When doing major documentation updates in Pro-Trader-PLUGIN"
+confidence: 0.86
+domain: workflow
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader Openclaw Documentation
+
+## Action
+
+Update README.md, SKILL.md/AGENTS.md for OpenClaw compatibility, include CLAUDE.md symlink
+
+## Evidence
+
+- docs: add AGENTS.md with CLAUDE.md symlink (openclaw convention)
+- docs: rewrite README for plugin architecture + openclaw v2026.3.8
+
+---
+id: pro-trader-state-tracking-pattern
+trigger: "When adding features that need persistent state in Pro-Trader-PLUGIN"
+confidence: 0.91
+domain: workflow
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader State Tracking Pattern
+
+## Action
+
+Create JSON files in logs/{feature}_state.json or logs/{feature}_cache.json with read/write logic
+
+## Evidence
+
+- log-state-management workflow with 0.91 confidence
+- High frequency: ~5x/month pattern
+
+---
+id: pro-trader-plugin-architecture-structure
+trigger: "When restructuring Pro-Trader-PLUGIN system"
+confidence: 0.9
+domain: architecture
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader Plugin Architecture Structure
+
+## Action
+
+Organize as plugin framework with core library + plugin system + service layer architecture
+
+## Evidence
+
+- feat: restructure as plugin framework — core library + plugin system + service layer
+- Plugin-centric architecture throughout
+
+---
+id: pro-trader-data-source-priority
+trigger: "When selecting realtime data sources in Pro-Trader-PLUGIN"
+confidence: 0.85
+domain: architecture
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-PLUGIN
+---
+
+# Pro Trader Data Source Priority
+
+## Action
+
+Prioritize Alpaca/Finnhub/Polygon/Webull before yfinance for realtime data
+
+## Evidence
+
+- feat: add realtime data plugin (Alpaca/Finnhub/Polygon/Webull before yfinance)
+- Explicit data source hierarchy
+
