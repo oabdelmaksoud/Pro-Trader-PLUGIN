@@ -399,16 +399,18 @@ const S = {
 // ── HELPERS ──
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
-const fmt = (v, d=2) => v != null ? Number(v).toFixed(d) : '--';
-const fmtUsd = v => v != null ? '$' + Number(v).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : '--';
-const fmtPct = v => v != null ? (v >= 0 ? '+' : '') + Number(v).toFixed(2) + '%' : '--';
+const esc = s => { const d = document.createElement('div'); d.textContent = String(s ?? ''); return d.innerHTML; };
+const fmt = (v, d=2) => { const n = Number(v); return v != null && !isNaN(n) ? n.toFixed(d) : '--'; };
+const fmtUsd = v => { const n = Number(v); if (v == null || isNaN(n)) return '--'; const abs = Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); return n < 0 ? '-$'+abs : '$'+abs; };
+const fmtPct = v => { const n = Number(v); if (v == null || isNaN(n)) return '--'; return (n >= 0 ? '+' : '') + n.toFixed(2) + '%'; };
 const pnlClass = v => v > 0 ? 'positive' : v < 0 ? 'negative' : 'neutral';
 const dirBadge = d => {
+  const safe = esc(d);
   const cl = d === 'BUY' ? 'badge-buy' : d === 'SELL' ? 'badge-sell' : d === 'HOLD' ? 'badge-hold' : 'badge-pass';
-  return `<span class="badge ${cl}">${d}</span>`;
+  return `<span class="badge ${cl}">${safe}</span>`;
 };
 const scoreFill = s => {
-  const pct = Math.min(s / 10 * 100, 100);
+  const pct = Math.max(0, Math.min(s / 10 * 100, 100));
   const color = s >= 7 ? 'var(--green)' : s >= 5 ? 'var(--yellow)' : 'var(--red)';
   return `<div class="score-bar"><div class="score-track"><div class="score-fill" style="width:${pct}%;background:${color}"></div></div><div class="score-val" style="color:${color}">${fmt(s,1)}</div></div>`;
 };
@@ -421,6 +423,7 @@ $$('.nav-tab').forEach(tab => {
     tab.classList.add('active');
     const target = tab.dataset.tab;
     $(`#tab-${target}`).classList.add('active');
+    if (target === 'overview') loadEquityCurve();
     if (target === 'performance') loadPerformance();
     if (target === 'signals') loadSignals();
     if (target === 'monitors') loadMonitors();
@@ -452,6 +455,8 @@ function updateOverview() {
     const pct = S.today_pnl / S.portfolio_value * 100;
     $('#ov-pnl-pct').textContent = fmtPct(pct);
     $('#ov-pnl-pct').className = 'change ' + pnlClass(pct);
+  } else {
+    $('#ov-pnl-pct').textContent = '';
   }
 
   // Positions table
@@ -462,9 +467,10 @@ function updateOverview() {
     tbody.innerHTML = S.positions.slice(0, 8).map(p => {
       const pl = Number(p.unrealized_pl || 0);
       const plPct = Number(p.unrealized_plpc || 0);
+      const qty = Number(p.qty);
       return `<tr>
-        <td><span class="pos-symbol">${p.symbol}</span></td>
-        <td>${fmt(p.qty, p.qty % 1 ? 4 : 0)}</td>
+        <td><span class="pos-symbol">${esc(p.symbol)}</span></td>
+        <td>${fmt(qty, qty % 1 ? 4 : 0)}</td>
         <td>${fmtUsd(p.avg_entry_price)}</td>
         <td>${fmtUsd(p.current_price)}</td>
         <td class="${pnlClass(pl)}">${(pl>=0?'+':'') + fmtUsd(pl)}</td>
@@ -484,11 +490,12 @@ function updatePositions() {
   tbody.innerHTML = S.positions.map(p => {
     const pl = Number(p.unrealized_pl || 0);
     const plPct = Number(p.unrealized_plpc || 0);
+    const qty = Number(p.qty);
     return `<tr>
-      <td><span class="pos-symbol">${p.symbol}</span><br><span class="pos-type">${p.asset_type || 'equity'}</span></td>
-      <td>${p.side || 'long'}</td>
-      <td>${p.asset_type || 'equity'}</td>
-      <td>${fmt(p.qty, p.qty % 1 ? 4 : 0)}</td>
+      <td><span class="pos-symbol">${esc(p.symbol)}</span><br><span class="pos-type">${esc(p.asset_type || 'equity')}</span></td>
+      <td>${esc(p.side || 'long')}</td>
+      <td>${esc(p.asset_type || 'equity')}</td>
+      <td>${fmt(qty, qty % 1 ? 4 : 0)}</td>
       <td>${fmtUsd(p.avg_entry_price)}</td>
       <td>${fmtUsd(p.current_price)}</td>
       <td>${fmtUsd(p.market_value)}</td>
@@ -516,17 +523,17 @@ function renderSignals(signals, container, limit) {
     const timeStr = typeof ts === 'string' ? ts.slice(0, 19).replace('T', ' ') : new Date(ts * 1000).toLocaleString();
     return `<div class="signal-card">
       <div class="signal-header">
-        <span class="signal-ticker">${ticker}</span>
+        <span class="signal-ticker">${esc(ticker)}</span>
         ${dirBadge(dir)}
         ${score >= 7 && conf >= 7 ? '<span class="badge badge-buy">THRESHOLD MET</span>' : ''}
       </div>
       <div class="signal-meta">
         <div><dt>Score</dt><dd>${scoreFill(score)}</dd></div>
-        <div><dt>Confidence</dt><dd>${conf}/10</dd></div>
+        <div><dt>Confidence</dt><dd>${esc(conf)}/10</dd></div>
         <div><dt>Price</dt><dd>${price ? fmtUsd(price) : '--'}</dd></div>
         <div><dt>Stop</dt><dd>${s.stop_loss ? fmtUsd(s.stop_loss) : '--'}</dd></div>
         <div><dt>Target</dt><dd>${s.take_profit ? fmtUsd(s.take_profit) : '--'}</dd></div>
-        <div><dt>Time</dt><dd style="font-size:10px">${timeStr}</dd></div>
+        <div><dt>Time</dt><dd style="font-size:10px">${esc(timeStr)}</dd></div>
       </div>
     </div>`;
   }).join('');
@@ -574,7 +581,7 @@ async function loadPerformance() {
         const wr = d.win_rate || (d.wins / d.total * 100);
         const totalPnl = d.total_pnl_pct || 0;
         return `<tr>
-          <td style="font-weight:700">${sym}</td>
+          <td style="font-weight:700">${esc(sym)}</td>
           <td>${d.total}</td>
           <td class="positive">${d.wins}</td>
           <td class="negative">${d.losses || d.total - d.wins}</td>
@@ -593,8 +600,8 @@ async function loadPerformance() {
       trBody.innerHTML = trades.slice(-30).reverse().map(t => {
         const pnl = t.pnl_pct || 0;
         return `<tr>
-          <td style="font-weight:700">${t.ticker}</td>
-          <td>${t.side}</td>
+          <td style="font-weight:700">${esc(t.ticker)}</td>
+          <td>${esc(t.side)}</td>
           <td>${fmtUsd(t.entry_price)}</td>
           <td>${fmtUsd(t.exit_price)}</td>
           <td class="${pnlClass(pnl)}" style="font-weight:700">${fmtPct(pnl)}</td>
@@ -646,20 +653,17 @@ async function loadMonitors() {
       container.innerHTML = '<div class="empty">No alerts — all monitors quiet</div>';
       return;
     }
-    container.innerHTML = alerts.map(a => `
-      <div class="alert-row ${a.severity || 'info'}">
-        <div class="alert-msg">${a.message || a.type || 'Alert'}</div>
-        <div class="alert-source">${a.monitor || ''} &middot; ${a.severity || 'info'}</div>
-      </div>
-    `).join('');
+    const renderAlert = a => {
+      const sev = esc(a.severity || 'info');
+      return `<div class="alert-row ${sev}">
+        <div class="alert-msg">${esc(a.message || a.type || 'Alert')}</div>
+        <div class="alert-source">${esc(a.monitor || '')} &middot; ${sev}</div>
+      </div>`;
+    };
+    container.innerHTML = alerts.map(renderAlert).join('');
 
     // Also update overview alerts
-    $('#ov-alerts').innerHTML = alerts.slice(0, 5).map(a => `
-      <div class="alert-row ${a.severity || 'info'}">
-        <div class="alert-msg">${a.message || a.type || 'Alert'}</div>
-        <div class="alert-source">${a.monitor || ''}</div>
-      </div>
-    `).join('') || '<div class="empty">No alerts</div>';
+    $('#ov-alerts').innerHTML = alerts.slice(0, 5).map(renderAlert).join('') || '<div class="empty">No alerts</div>';
   } catch(e) {
     console.error('Failed to load monitors:', e);
   }
@@ -678,10 +682,10 @@ async function loadPlugins() {
         const dotClass = status === 'ok' ? 'ok' : 'error';
         html += `<div class="plugin-row">
           <div class="plugin-dot ${dotClass}"></div>
-          <div class="plugin-name">${name}</div>
-          <div class="plugin-cat">${cat}</div>
-          <div style="font-size:11px;color:var(--text-dim)">${info.version || ''}</div>
-          <div style="font-size:11px;color:${status === 'ok' ? 'var(--green)' : 'var(--red)'}">${status}</div>
+          <div class="plugin-name">${esc(name)}</div>
+          <div class="plugin-cat">${esc(cat)}</div>
+          <div style="font-size:11px;color:var(--text-dim)">${esc(info.version || '')}</div>
+          <div style="font-size:11px;color:${status === 'ok' ? 'var(--green)' : 'var(--red)'}">${esc(status)}</div>
         </div>`;
       }
     }
@@ -719,7 +723,7 @@ async function doLookup(symbol) {
     const tech = await techRes.json();
 
     if (quote.error && !quote.price) {
-      container.innerHTML = `<div class="empty">Error: ${quote.error}</div>`;
+      container.innerHTML = `<div class="empty">Error: ${esc(quote.error)}</div>`;
       return;
     }
 
@@ -738,7 +742,7 @@ async function doLookup(symbol) {
           <tr><td style="color:var(--text-dim)">High</td><td>${fmtUsd(quote.high)}</td><td style="color:var(--text-dim)">Low</td><td>${fmtUsd(quote.low)}</td></tr>
           <tr><td style="color:var(--text-dim)">Volume</td><td>${(quote.volume || 0).toLocaleString()}</td><td style="color:var(--text-dim)">Avg Volume</td><td>${(quote.avg_volume || 0).toLocaleString()}</td></tr>
           <tr><td style="color:var(--text-dim)">Bid</td><td>${fmtUsd(quote.bid)}</td><td style="color:var(--text-dim)">Ask</td><td>${fmtUsd(quote.ask)}</td></tr>
-          <tr><td style="color:var(--text-dim)">Vol Ratio</td><td>${quote.volume_ratio || '--'}</td><td style="color:var(--text-dim)">Source</td><td>${quote.source || '--'}</td></tr>
+          <tr><td style="color:var(--text-dim)">Vol Ratio</td><td>${esc(quote.volume_ratio || '--')}</td><td style="color:var(--text-dim)">Source</td><td>${esc(quote.source || '--')}</td></tr>
         </table>
       `;
     } else {
@@ -765,7 +769,7 @@ async function doLookup(symbol) {
       html += gaugeRow('Vol Ratio', tech.volume_ratio, 0, 4, 'var(--cyan)');
 
       html += '<div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px">';
-      const techItem = (label, val) => val != null ? `<div><span style="color:var(--text-dim)">${label}:</span> <span style="font-weight:600">${typeof val === 'number' ? fmt(val, 2) : val}</span></div>` : '';
+      const techItem = (label, val) => val != null ? `<div><span style="color:var(--text-dim)">${esc(label)}:</span> <span style="font-weight:600">${typeof val === 'number' ? fmt(val, 2) : esc(val)}</span></div>` : '';
       html += techItem('SMA 20', tech.sma_20);
       html += techItem('SMA 50', tech.sma_50);
       html += techItem('SMA 200', tech.sma_200);
@@ -791,7 +795,7 @@ async function doLookup(symbol) {
     html += '</div>';
     container.innerHTML = html;
   } catch(e) {
-    container.innerHTML = `<div class="empty">Failed to fetch: ${e.message}</div>`;
+    container.innerHTML = `<div class="empty">Failed to fetch: ${esc(e.message)}</div>`;
   }
 }
 
@@ -830,6 +834,7 @@ function connectSSE() {
     const data = JSON.parse(e.data);
     S.last_signal = data;
     S.signals.unshift(data);
+    if (S.signals.length > 200) S.signals.length = 200;
     renderSignals(S.signals.slice(0, 3), $('#ov-signals'), 3);
   });
 
@@ -838,9 +843,9 @@ function connectSSE() {
     const alerts = data.alerts || [];
     if (alerts.length > 0) {
       $('#ov-alerts').innerHTML = alerts.slice(0, 5).map(a => `
-        <div class="alert-row ${a.severity || 'info'}">
-          <div class="alert-msg">${a.message || ''}</div>
-          <div class="alert-source">${a.monitor || ''}</div>
+        <div class="alert-row ${esc(a.severity || 'info')}">
+          <div class="alert-msg">${esc(a.message || '')}</div>
+          <div class="alert-source">${esc(a.monitor || '')}</div>
         </div>
       `).join('');
     }
