@@ -9,6 +9,8 @@ Usage:
     pro-trader plugin enable polygon
     pro-trader monitor start
     pro-trader config show
+    pro-trader setup
+    pro-trader setup --check
     pro-trader health
 """
 
@@ -237,6 +239,24 @@ def dashboard(
 
     trader = ProTrader()
     start(port=port, open_browser=open_browser, trader=trader)
+
+
+# ── Setup Wizard ────────────────────────────────────────────────────────────
+
+@app.command()
+def setup(
+    check: bool = typer.Option(False, "--check", help="Verify existing setup without changes"),
+):
+    """Interactive setup wizard for first-time configuration."""
+    from pro_trader.cli.setup_wizard import run_wizard, run_check
+
+    if check:
+        run_check()
+    else:
+        try:
+            run_wizard()
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Setup cancelled.[/yellow]")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
