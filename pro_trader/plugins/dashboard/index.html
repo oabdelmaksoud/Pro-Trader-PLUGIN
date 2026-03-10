@@ -435,7 +435,7 @@ $$('.nav-tab').forEach(tab => {
 function updateHeader() {
   $('#h-portfolio').textContent = fmtUsd(S.portfolio_value);
   const pnlEl = $('#h-pnl');
-  pnlEl.textContent = (S.today_pnl >= 0 ? '+' : '') + fmtUsd(S.today_pnl);
+  pnlEl.textContent = S.today_pnl >= 0 ? '+' + fmtUsd(S.today_pnl) : fmtUsd(S.today_pnl);
   pnlEl.className = 'value ' + pnlClass(S.today_pnl);
   $('#h-positions').textContent = S.positions.length;
   $('#h-heat').textContent = fmt(S.heat, 1) + '%';
@@ -448,7 +448,7 @@ function updateOverview() {
   $('#ov-bp').textContent = fmtUsd(S.buying_power);
 
   const pnlEl = $('#ov-pnl');
-  pnlEl.textContent = (S.today_pnl >= 0 ? '+' : '') + fmtUsd(S.today_pnl);
+  pnlEl.textContent = S.today_pnl >= 0 ? '+' + fmtUsd(S.today_pnl) : fmtUsd(S.today_pnl);
   pnlEl.className = 'big ' + pnlClass(S.today_pnl);
 
   if (S.portfolio_value > 0 && S.today_pnl !== 0) {
@@ -473,7 +473,7 @@ function updateOverview() {
         <td>${fmt(qty, qty % 1 ? 4 : 0)}</td>
         <td>${fmtUsd(p.avg_entry_price)}</td>
         <td>${fmtUsd(p.current_price)}</td>
-        <td class="${pnlClass(pl)}">${(pl>=0?'+':'') + fmtUsd(pl)}</td>
+        <td class="${pnlClass(pl)}">${pl>=0 ? '+'+fmtUsd(pl) : fmtUsd(pl)}</td>
         <td class="${pnlClass(plPct)}">${fmtPct(plPct)}</td>
       </tr>`;
     }).join('');
@@ -499,7 +499,7 @@ function updatePositions() {
       <td>${fmtUsd(p.avg_entry_price)}</td>
       <td>${fmtUsd(p.current_price)}</td>
       <td>${fmtUsd(p.market_value)}</td>
-      <td class="${pnlClass(pl)}" style="font-weight:700">${(pl>=0?'+':'') + fmtUsd(pl)}</td>
+      <td class="${pnlClass(pl)}" style="font-weight:700">${pl>=0 ? '+'+fmtUsd(pl) : fmtUsd(pl)}</td>
       <td class="${pnlClass(plPct)}" style="font-weight:700">${fmtPct(plPct)}</td>
       <td>${p.stop_loss ? fmtUsd(p.stop_loss) : '--'}</td>
       <td>${p.take_profit ? fmtUsd(p.take_profit) : '--'}</td>
@@ -851,7 +851,15 @@ function connectSSE() {
     }
   });
 
-  es.addEventListener('heartbeat', () => {});
+  es.addEventListener('heartbeat', () => {
+    $('#sse-dot').title = 'SSE connected — last heartbeat ' + new Date().toLocaleTimeString();
+  });
+
+  es.onopen = () => {
+    S.connected = true;
+    $('#sse-dot').classList.add('connected');
+    $('#sse-dot').title = 'SSE connected';
+  };
 
   es.onerror = () => {
     S.connected = false;
