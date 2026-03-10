@@ -176,6 +176,15 @@ def _build_intel_context(data: dict) -> str:
     """Build intelligence context string from monitor outputs + new data sources."""
     parts = []
 
+    # Futures contract context (if applicable)
+    if data.get("asset_type") == "futures":
+        fc = data.get("futures_context", "")
+        if fc:
+            parts.append(f"--- FUTURES CONTRACT ---\n{fc}")
+        spec = data.get("contract_spec", {})
+        if spec:
+            parts.append(f"Margin: ${spec.get('margin', '?')} | Point Value: ${spec.get('point_value', '?')} | Asset Class: {spec.get('asset_class', '?').upper()}")
+
     # Earnings whisper
     ew = data.get("earnings_whisper", {})
     if ew.get("whisper_eps") is not None:
@@ -217,15 +226,48 @@ def run_analyst_team(ticker: str, data: dict) -> dict:
     mtf_block = f"\n\nMulti-Timeframe Confluence Analysis:\n{mtf_summary}" if mtf_summary else ""
     intel_block = f"\n\nIntelligence Signals:\n{intel_ctx}" if intel_ctx else ""
 
-    prompts = {
-        "flash": f"""You are Flash 📈, CooperCorp Technical Analyst.
+    is_futures = data.get("asset_type") == "futures"
+    contract_name = data.get("contract_spec", {}).get("name", ticker) if is_futures else ticker
+
+    if is_futures:
+        prompts = {
+            "flash": f"""You are Flash 📈, CooperCorp Technical Analyst — FUTURES MODE.
+Analyze {contract_name} ({ticker}) for entry. Market data:
+{data_summary}{mtf_block}
+This is a FUTURES CONTRACT. Consider: margin=${data.get('contract_spec',{}).get('margin','?')}, tick value=${data.get('contract_spec',{}).get('tick_value','?')}.
+Provide: price, entry zone, stop (in ticks), target (in ticks), R:R ratio, RSI, trend direction, volume.
+Futures trade nearly 24h — note session context (Globex vs RTH).
+End with: TECHNICAL SCORE: X/10""",
+
+            "macro": f"""You are Macro 🌍, CooperCorp Fundamentals Analyst — FUTURES MODE.
+Analyze {contract_name} ({ticker}). Market data:
+{data_summary}{intel_block}
+This is a {data.get('contract_spec',{}).get('asset_class','').upper()} futures contract.
+For FX futures: analyze central bank policy, rate differentials, economic data.
+For commodity futures: analyze supply/demand, seasonal patterns, geopolitical risk.
+For index futures: analyze equity fundamentals, VIX, sector rotation.
+For crypto futures: analyze on-chain metrics, regulatory news, institutional flows.
+Consider FOMC proximity impact on this asset class.
+End with: FUNDAMENTAL SCORE: X/10""",
+
+            "pulse": f"""You are Pulse 💬, CooperCorp Sentiment Analyst — FUTURES MODE.
+Analyze {contract_name} ({ticker}) sentiment. Market data:
+{data_summary}{intel_block}
+This is a futures contract — consider: COT (Commitment of Traders) positioning if known,
+institutional vs retail sentiment, open interest trends, funding rates (crypto).
+Check for geopolitical risk events affecting this asset class.
+End with: SENTIMENT SCORE: X/10""",
+        }
+    else:
+        prompts = {
+            "flash": f"""You are Flash 📈, CooperCorp Technical Analyst.
 Analyze {ticker} for intraday entry. Market data:
 {data_summary}{mtf_block}
 Provide: price, entry zone, stop (-2%), target (+6%), R:R ratio, RSI status, SMA trend, volume vs average.
 If MTF confluence data is available, factor it in — multiple timeframes aligning is a stronger signal.
 End with: TECHNICAL SCORE: X/10""",
 
-        "macro": f"""You are Macro 🌍, CooperCorp Fundamentals Analyst.
+            "macro": f"""You are Macro 🌍, CooperCorp Fundamentals Analyst.
 Analyze {ticker} fundamentals. Market data:
 {data_summary}{intel_block}
 Provide: main catalyst, days to earnings, sector trend, relative P/E, insider activity, key macro risks.
@@ -233,13 +275,13 @@ Consider: dark pool activity, whale moves, ETF sector flows, FOMC proximity if d
 If earnings whisper data shows high bar, flag the risk of earnings miss.
 End with: FUNDAMENTAL SCORE: X/10""",
 
-        "pulse": f"""You are Pulse 💬, CooperCorp Sentiment & Options Analyst.
+            "pulse": f"""You are Pulse 💬, CooperCorp Sentiment & Options Analyst.
 Analyze {ticker} sentiment. Market data:
 {data_summary}{intel_block}
 Reddit sentiment: {json.dumps(data.get('reddit_sentiment', {}))[:300]}
 Provide: news tone, options PCR, unusual options activity, Reddit/social buzz, dark pool signals, fear/greed.
 End with: SENTIMENT SCORE: X/10""",
-    }
+        }
 
     reports = {}
     with ThreadPoolExecutor(max_workers=3) as ex:

@@ -65,6 +65,14 @@
       ]
     }
   },
+  "futures_position": {
+    "max_contracts": 1,
+    "max_margin_pct": 0.60,
+    "stop_ticks_default": 20,
+    "target_ticks_default": 40,
+    "margin_buffer_pct": 1.5,
+    "_comment": "Never use more than 60% of account as margin. 1 contract max in recovery."
+  },
   "trailing_stop": {
     "trail_pct": 0.02,
     "activate_after_pct": 0.015
@@ -73,7 +81,8 @@
     "force_close_time": "15:45",
     "exempt_tags": [
       "swing",
-      "options"
+      "options",
+      "futures"
     ]
   },
   "goal": {
@@ -124,6 +133,13 @@
     "etfs": [
       "SPY", "QQQ", "IWM", "SMH", "XLK", "XLF", "XLE", "SOXL", "TQQQ"
     ],
+    "futures_affordable": [
+      "/MET", "/MCD", "/M6A", "/M6B", "/M6E", "/BFF", "/1OZ", "/MSF", "/MNG"
+    ],
+    "futures_index": [
+      "/MES", "/MNQ", "/MYM", "/MCL"
+    ],
+    "_futures_comment": "affordable = under $700 margin (tradeable on $500 account). index = higher margin, available phase2+",
     "focus": [
       "ARM"
     ],

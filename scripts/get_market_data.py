@@ -498,6 +498,40 @@ def _load_monitor_signals(sym: str) -> dict:
 
 
 def gather_ticker_data(sym: str, full: bool = False) -> dict:
+    # ── Futures detection: use specialized data path ─────────────────────────
+    try:
+        from tradingagents.dataflows.futures_data import is_futures_symbol, get_futures_technicals, get_futures_quote, get_contract_spec, format_futures_context
+        if is_futures_symbol(sym):
+            spec = get_contract_spec(sym)
+            tech = get_futures_technicals(sym)
+            quote = get_futures_quote(sym)
+            data = {
+                "ticker": sym,
+                "asset_type": "futures",
+                "as_of": datetime.now().isoformat(),
+                "technicals": tech,
+                "contract_spec": {
+                    "name": spec["name"] if spec else sym,
+                    "asset_class": spec.get("asset_class", "unknown") if spec else "unknown",
+                    "margin": spec.get("margin", 0) if spec else 0,
+                    "point_value": spec.get("point_value", 0) if spec else 0,
+                    "tick_value": spec.get("tick_value", 0) if spec else 0,
+                    "exchange": spec.get("exchange", "CME") if spec else "CME",
+                } if spec else {},
+                "quote": quote,
+                "price": quote.get("price", 0) if quote else 0,
+                "news": get_news_headlines(spec.get("proxy_etf", sym) if spec else sym),
+                "market_context": _get_market_context(sym) if full else {},
+                "futures_context": format_futures_context(sym),
+                "monitor_signals": _load_monitor_signals(sym),
+            }
+            if full:
+                data["global_context"] = _get_global_context()
+                data["gov_rss_events"] = _get_gov_rss_events()
+            return data
+    except Exception:
+        pass  # Fall through to standard equity path
+
     data = {
         "ticker": sym,
         "as_of": datetime.now().isoformat(),
@@ -584,6 +618,21 @@ def score_ticker(data: dict) -> float:
     tech = data.get("technicals", {})
     if tech.get("error"):
         return 0.0
+
+    # ── Futures-specific scoring adjustments ──────────────────────────────────
+    if data.get("asset_type") == "futures":
+        spec = data.get("contract_spec", {})
+        margin = spec.get("margin", 0)
+        # Margin affordability bonus (lower margin = more accessible for $500 account)
+        if 0 < margin <= 300:
+            score += 0.5  # very affordable, good margin buffer
+        elif margin <= 500:
+            score += 0.3  # affordable
+        elif margin > 1000:
+            score -= 0.3  # too expensive for recovery account
+        # Futures get slight boost for 24h liquidity
+        if spec.get("asset_class") in ("index", "fx"):
+            score += 0.2  # high liquidity markets
 
     # Technical signals
     if tech.get("above_sma20"):
