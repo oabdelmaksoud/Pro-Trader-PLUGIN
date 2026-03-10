@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class YFinancePlugin(DataPlugin):
     name = "yfinance"
     version = "1.0.0"
-    description = "Market data via Yahoo Finance (free, no API key)"
+    description = "Market data via Yahoo Finance (delayed quotes, free, no API key)"
     provides = ["quotes", "technicals", "fundamentals", "news"]
 
     def __init__(self):

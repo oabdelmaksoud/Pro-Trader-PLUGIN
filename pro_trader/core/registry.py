@@ -163,6 +163,7 @@ class PluginRegistry:
         """Discover built-in plugins from pro_trader.plugins package."""
         count = 0
         builtin_modules = [
+            "pro_trader.plugins.data.realtime_plugin",
             "pro_trader.plugins.data.yfinance_plugin",
             "pro_trader.plugins.data.futures_plugin",
             "pro_trader.plugins.analysts.flash_analyst",

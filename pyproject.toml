@@ -87,6 +87,7 @@ tradingagents = "cli.main:app"
 #   polygon = "pro_trader_polygon:PolygonPlugin"
 
 [project.entry-points."pro_trader.data"]
+realtime = "pro_trader.plugins.data.realtime_plugin:RealtimePlugin"
 yfinance = "pro_trader.plugins.data.yfinance_plugin:YFinancePlugin"
 futures = "pro_trader.plugins.data.futures_plugin:FuturesPlugin"
 
