@@ -224,6 +224,21 @@ def monitor(action: str = typer.Argument("status", help="start | stop | status")
         console.print(f"Unknown action: {action}. Use: status, check")
 
 
+# ── Dashboard ───────────────────────────────────────────────────────────────
+
+@app.command()
+def dashboard(
+    port: int = typer.Option(8080, help="HTTP port"),
+    open_browser: bool = typer.Option(False, "--open", help="Auto-open browser"),
+):
+    """Launch the real-time trading dashboard."""
+    from pro_trader import ProTrader
+    from pro_trader.plugins.dashboard.server import start
+
+    trader = ProTrader()
+    start(port=port, open_browser=open_browser, trader=trader)
+
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _print_signal(signal):

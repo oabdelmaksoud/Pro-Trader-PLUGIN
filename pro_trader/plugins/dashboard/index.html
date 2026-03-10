@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pro-Trader Dashboard</title>
+<style>
+:root {
+  --bg: #0a0e17;
+  --surface: #111827;
+  --surface2: #1a2332;
+  --surface3: #1f2b3d;
+  --border: #1e2d44;
+  --green: #10b981;
+  --green-bg: rgba(16,185,129,0.1);
+  --red: #ef4444;
+  --red-bg: rgba(239,68,68,0.1);
+  --yellow: #f59e0b;
+  --yellow-bg: rgba(245,158,11,0.1);
+  --blue: #3b82f6;
+  --blue-bg: rgba(59,130,246,0.1);
+  --cyan: #06b6d4;
+  --purple: #8b5cf6;
+  --text: #e2e8f0;
+  --text-dim: #64748b;
+  --text-bright: #f1f5f9;
+  --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; background:var(--bg); color:var(--text); font-family:var(--mono); font-size:13px; overflow-x:hidden; }
+::-webkit-scrollbar { width:6px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+/* ── HEADER ── */
+.header {
+  display:flex; align-items:center; gap:16px;
+  padding:0 24px; height:52px;
+  background:var(--surface); border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:100;
+}
+.logo { font-family:var(--sans); font-weight:800; font-size:18px; color:#fff; }
+.logo span { color:var(--green); }
+.header-stats { display:flex; gap:20px; margin-left:auto; align-items:center; }
+.header-stat { text-align:right; }
+.header-stat .label { font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px; }
+.header-stat .value { font-size:15px; font-weight:700; color:var(--text-bright); }
+.status-dot { width:8px; height:8px; border-radius:50%; background:var(--text-dim); }
+.status-dot.connected { background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+/* ── NAV TABS ── */
+.nav-tabs {
+  display:flex; gap:0; padding:0 24px;
+  background:var(--surface); border-bottom:1px solid var(--border);
+}
+.nav-tab {
+  padding:10px 20px; cursor:pointer;
+  font-size:12px; font-weight:600; color:var(--text-dim);
+  border-bottom:2px solid transparent; transition:all 0.2s;
+  font-family:var(--sans);
+}
+.nav-tab:hover { color:var(--text); }
+.nav-tab.active { color:var(--green); border-bottom-color:var(--green); }
+
+/* ── MAIN LAYOUT ── */
+.main { padding:16px 24px; overflow-y:auto; height:calc(100vh - 104px); }
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+
+/* ── CARDS ── */
+.grid { display:grid; gap:16px; }
+.grid-4 { grid-template-columns:repeat(4, 1fr); }
+.grid-3 { grid-template-columns:repeat(3, 1fr); }
+.grid-2 { grid-template-columns:repeat(2, 1fr); }
+.grid-1-2 { grid-template-columns:1fr 2fr; }
+.grid-2-1 { grid-template-columns:2fr 1fr; }
+@media (max-width:1200px) { .grid-4 { grid-template-columns:repeat(2,1fr); } }
+@media (max-width:768px) { .grid-4,.grid-3,.grid-2,.grid-1-2,.grid-2-1 { grid-template-columns:1fr; } }
+
+.card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:8px; padding:16px; overflow:hidden;
+}
+.card-title {
+  font-family:var(--sans); font-size:11px; font-weight:700;
+  text-transform:uppercase; letter-spacing:1.5px;
+  color:var(--text-dim); margin-bottom:12px;
+  display:flex; align-items:center; gap:8px;
+}
+.card-title .icon { font-size:14px; }
+
+/* ── METRIC CARDS ── */
+.metric { text-align:center; padding:20px 16px; }
+.metric .big { font-size:28px; font-weight:700; color:var(--text-bright); line-height:1.2; }
+.metric .sub { font-size:11px; color:var(--text-dim); margin-top:4px; }
+.metric .change { font-size:13px; font-weight:600; margin-top:6px; }
+.positive { color:var(--green); }
+.negative { color:var(--red); }
+.neutral { color:var(--text-dim); }
+
+/* ── TABLES ── */
+.table-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:12px; }
+th { font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--text-dim); text-align:left; padding:8px 12px; border-bottom:1px solid var(--border); font-weight:600; }
+td { padding:10px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
+tr:last-child td { border-bottom:none; }
+tr:hover { background:rgba(255,255,255,0.02); }
+
+/* ── BADGES ── */
+.badge {
+  display:inline-block; padding:2px 8px; border-radius:4px;
+  font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;
+}
+.badge-buy { background:var(--green-bg); color:var(--green); }
+.badge-sell { background:var(--red-bg); color:var(--red); }
+.badge-hold { background:var(--yellow-bg); color:var(--yellow); }
+.badge-pass { background:rgba(100,116,139,0.15); color:var(--text-dim); }
+
+/* ── SCORE BAR ── */
+.score-bar { display:flex; align-items:center; gap:8px; }
+.score-track { flex:1; height:6px; background:var(--surface3); border-radius:3px; overflow:hidden; }
+.score-fill { height:100%; border-radius:3px; transition:width 0.5s; }
+.score-val { font-weight:700; font-size:13px; min-width:32px; }
+
+/* ── SIGNAL CARD ── */
+.signal-card {
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:6px; padding:12px; margin-bottom:8px;
+}
+.signal-header { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.signal-ticker { font-size:16px; font-weight:700; color:var(--text-bright); }
+.signal-meta { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; font-size:11px; }
+.signal-meta dt { color:var(--text-dim); }
+.signal-meta dd { font-weight:600; }
+
+/* ── POSITION ROW ── */
+.pos-symbol { font-weight:700; font-size:14px; color:var(--text-bright); }
+.pos-type { font-size:10px; color:var(--text-dim); text-transform:uppercase; }
+
+/* ── PLUGIN LIST ── */
+.plugin-row { display:flex; align-items:center; gap:12px; padding:8px 0; border-bottom:1px solid var(--border); }
+.plugin-row:last-child { border-bottom:none; }
+.plugin-dot { width:8px; height:8px; border-radius:50%; }
+.plugin-dot.ok { background:var(--green); }
+.plugin-dot.error { background:var(--red); }
+.plugin-name { font-weight:600; color:var(--text-bright); flex:1; }
+.plugin-cat { font-size:10px; color:var(--text-dim); text-transform:uppercase; }
+
+/* ── ALERT ROW ── */
+.alert-row { padding:8px 12px; border-left:3px solid var(--border); margin-bottom:6px; border-radius:0 4px 4px 0; background:var(--surface2); }
+.alert-row.warning { border-left-color:var(--yellow); }
+.alert-row.info { border-left-color:var(--blue); }
+.alert-row.critical { border-left-color:var(--red); }
+.alert-msg { font-size:12px; }
+.alert-source { font-size:10px; color:var(--text-dim); margin-top:2px; }
+
+/* ── EMPTY STATE ── */
+.empty { text-align:center; padding:40px 20px; color:var(--text-dim); }
+.empty .icon { font-size:32px; margin-bottom:8px; }
+
+/* ── TECHNICAL GAUGE ── */
+.gauge { display:flex; align-items:center; gap:10px; padding:6px 0; }
+.gauge-label { width:60px; font-size:11px; color:var(--text-dim); }
+.gauge-bar { flex:1; height:4px; background:var(--surface3); border-radius:2px; position:relative; }
+.gauge-fill { height:100%; border-radius:2px; }
+.gauge-val { width:50px; text-align:right; font-size:11px; font-weight:600; }
+
+/* ── MINI CHART (SVG) ── */
+.mini-chart { width:100%; height:60px; }
+.mini-chart polyline { fill:none; stroke:var(--green); stroke-width:1.5; }
+.mini-chart .area { fill:url(#chartGrad); stroke:none; }
+
+/* ── TICKER LOOKUP ── */
+.lookup-input {
+  width:100%; padding:10px 14px;
+  background:var(--surface2); border:1px solid var(--border); border-radius:6px;
+  color:var(--text-bright); font-family:var(--mono); font-size:14px;
+  outline:none; transition:border-color 0.2s;
+}
+.lookup-input:focus { border-color:var(--green); }
+.lookup-result { margin-top:16px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo">Pro<span>Trader</span></div>
+  <div class="header-stats">
+    <div class="header-stat">
+      <div class="label">Portfolio</div>
+      <div class="value" id="h-portfolio">--</div>
+    </div>
+    <div class="header-stat">
+      <div class="label">Today P&L</div>
+      <div class="value" id="h-pnl">--</div>
+    </div>
+    <div class="header-stat">
+      <div class="label">Positions</div>
+      <div class="value" id="h-positions">--</div>
+    </div>
+    <div class="header-stat">
+      <div class="label">Heat</div>
+      <div class="value" id="h-heat">--</div>
+    </div>
+    <div class="status-dot" id="sse-dot" title="SSE disconnected"></div>
+  </div>
+</div>
+
+<!-- NAV TABS -->
+<div class="nav-tabs">
+  <div class="nav-tab active" data-tab="overview">Overview</div>
+  <div class="nav-tab" data-tab="positions">Positions</div>
+  <div class="nav-tab" data-tab="signals">Signals</div>
+  <div class="nav-tab" data-tab="performance">Performance</div>
+  <div class="nav-tab" data-tab="monitors">Monitors</div>
+  <div class="nav-tab" data-tab="plugins">Plugins</div>
+  <div class="nav-tab" data-tab="lookup">Lookup</div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main">
+
+  <!-- ═══ OVERVIEW TAB ═══ -->
+  <div class="tab-content active" id="tab-overview">
+    <!-- Metric cards -->
+    <div class="grid grid-4" style="margin-bottom:16px;">
+      <div class="card metric">
+        <div class="big" id="ov-equity">--</div>
+        <div class="sub">Total Equity</div>
+      </div>
+      <div class="card metric">
+        <div class="big" id="ov-cash">--</div>
+        <div class="sub">Cash Available</div>
+      </div>
+      <div class="card metric">
+        <div class="big" id="ov-bp">--</div>
+        <div class="sub">Buying Power</div>
+      </div>
+      <div class="card metric">
+        <div class="big" id="ov-pnl">--</div>
+        <div class="sub">Today's P&L</div>
+        <div class="change" id="ov-pnl-pct"></div>
+      </div>
+    </div>
+
+    <div class="grid grid-2" style="margin-bottom:16px;">
+      <!-- Positions summary -->
+      <div class="card">
+        <div class="card-title">Open Positions</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Symbol</th><th>Qty</th><th>Entry</th><th>Current</th><th>P&L</th><th>P&L %</th></tr></thead>
+            <tbody id="ov-positions"><tr><td colspan="6" class="empty">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Recent signals -->
+      <div class="card">
+        <div class="card-title">Recent Signals</div>
+        <div id="ov-signals"><div class="empty">Loading...</div></div>
+      </div>
+    </div>
+
+    <div class="grid grid-2">
+      <!-- Equity curve -->
+      <div class="card">
+        <div class="card-title">Equity Curve</div>
+        <div id="ov-equity-chart" style="height:120px;display:flex;align-items:end;gap:1px;"></div>
+      </div>
+
+      <!-- Monitor alerts -->
+      <div class="card">
+        <div class="card-title">Monitor Alerts</div>
+        <div id="ov-alerts"><div class="empty">No alerts</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ POSITIONS TAB ═══ -->
+  <div class="tab-content" id="tab-positions">
+    <div class="card">
+      <div class="card-title">All Positions</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Symbol</th><th>Side</th><th>Type</th><th>Qty</th>
+              <th>Entry</th><th>Current</th><th>Market Value</th>
+              <th>Unrealized P&L</th><th>P&L %</th>
+              <th>Stop Loss</th><th>Take Profit</th>
+            </tr>
+          </thead>
+          <tbody id="pos-table"><tr><td colspan="11" class="empty">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SIGNALS TAB ═══ -->
+  <div class="tab-content" id="tab-signals">
+    <div class="card">
+      <div class="card-title">Signal History (7 days)</div>
+      <div id="sig-list"><div class="empty">Loading signals...</div></div>
+    </div>
+  </div>
+
+  <!-- ═══ PERFORMANCE TAB ═══ -->
+  <div class="tab-content" id="tab-performance">
+    <div class="grid grid-4" style="margin-bottom:16px;">
+      <div class="card metric">
+        <div class="big" id="perf-total">--</div>
+        <div class="sub">Total Trades</div>
+      </div>
+      <div class="card metric">
+        <div class="big" id="perf-winrate">--</div>
+        <div class="sub">Win Rate</div>
+      </div>
+      <div class="card metric">
+        <div class="big positive" id="perf-avgwin">--</div>
+        <div class="sub">Avg Win %</div>
+      </div>
+      <div class="card metric">
+        <div class="big negative" id="perf-avgloss">--</div>
+        <div class="sub">Avg Loss %</div>
+      </div>
+    </div>
+
+    <div class="grid grid-2">
+      <!-- By ticker breakdown -->
+      <div class="card">
+        <div class="card-title">Performance by Ticker</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Ticker</th><th>Trades</th><th>Wins</th><th>Losses</th><th>Win Rate</th><th>Total P&L %</th></tr></thead>
+            <tbody id="perf-byticker"><tr><td colspan="6" class="empty">No data</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Trade log -->
+      <div class="card">
+        <div class="card-title">Trade History</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Ticker</th><th>Side</th><th>Entry</th><th>Exit</th><th>P&L %</th><th>P&L $</th></tr></thead>
+            <tbody id="perf-trades"><tr><td colspan="6" class="empty">No trades</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ MONITORS TAB ═══ -->
+  <div class="tab-content" id="tab-monitors">
+    <div class="card">
+      <div class="card-title">Active Monitor Alerts</div>
+      <div id="mon-alerts"><div class="empty">No alerts — all monitors quiet</div></div>
+    </div>
+  </div>
+
+  <!-- ═══ PLUGINS TAB ═══ -->
+  <div class="tab-content" id="tab-plugins">
+    <div class="card">
+      <div class="card-title">Plugin Status</div>
+      <div id="plugin-list"><div class="empty">Loading plugin status...</div></div>
+    </div>
+  </div>
+
+  <!-- ═══ LOOKUP TAB ═══ -->
+  <div class="tab-content" id="tab-lookup">
+    <div class="card">
+      <div class="card-title">Symbol Lookup</div>
+      <input class="lookup-input" id="lookup-input" placeholder="Enter ticker (e.g. NVDA, AAPL, TSLA)..." autocomplete="off">
+      <div class="lookup-result" id="lookup-result"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── STATE ──
+const S = {
+  positions: [],
+  portfolio_value: 0,
+  cash: 0,
+  equity: 0,
+  buying_power: 0,
+  today_pnl: 0,
+  heat: 0,
+  last_signal: null,
+  signals: [],
+  connected: false,
+};
+
+// ── HELPERS ──
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const fmt = (v, d=2) => v != null ? Number(v).toFixed(d) : '--';
+const fmtUsd = v => v != null ? '$' + Number(v).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : '--';
+const fmtPct = v => v != null ? (v >= 0 ? '+' : '') + Number(v).toFixed(2) + '%' : '--';
+const pnlClass = v => v > 0 ? 'positive' : v < 0 ? 'negative' : 'neutral';
+const dirBadge = d => {
+  const cl = d === 'BUY' ? 'badge-buy' : d === 'SELL' ? 'badge-sell' : d === 'HOLD' ? 'badge-hold' : 'badge-pass';
+  return `<span class="badge ${cl}">${d}</span>`;
+};
+const scoreFill = s => {
+  const pct = Math.min(s / 10 * 100, 100);
+  const color = s >= 7 ? 'var(--green)' : s >= 5 ? 'var(--yellow)' : 'var(--red)';
+  return `<div class="score-bar"><div class="score-track"><div class="score-fill" style="width:${pct}%;background:${color}"></div></div><div class="score-val" style="color:${color}">${fmt(s,1)}</div></div>`;
+};
+
+// ── TAB NAVIGATION ──
+$$('.nav-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    $$('.nav-tab').forEach(t => t.classList.remove('active'));
+    $$('.tab-content').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const target = tab.dataset.tab;
+    $(`#tab-${target}`).classList.add('active');
+    if (target === 'performance') loadPerformance();
+    if (target === 'signals') loadSignals();
+    if (target === 'monitors') loadMonitors();
+    if (target === 'plugins') loadPlugins();
+  });
+});
+
+// ── HEADER UPDATE ──
+function updateHeader() {
+  $('#h-portfolio').textContent = fmtUsd(S.portfolio_value);
+  const pnlEl = $('#h-pnl');
+  pnlEl.textContent = (S.today_pnl >= 0 ? '+' : '') + fmtUsd(S.today_pnl);
+  pnlEl.className = 'value ' + pnlClass(S.today_pnl);
+  $('#h-positions').textContent = S.positions.length;
+  $('#h-heat').textContent = fmt(S.heat, 1) + '%';
+}
+
+// ── OVERVIEW ──
+function updateOverview() {
+  $('#ov-equity').textContent = fmtUsd(S.equity || S.portfolio_value);
+  $('#ov-cash').textContent = fmtUsd(S.cash);
+  $('#ov-bp').textContent = fmtUsd(S.buying_power);
+
+  const pnlEl = $('#ov-pnl');
+  pnlEl.textContent = (S.today_pnl >= 0 ? '+' : '') + fmtUsd(S.today_pnl);
+  pnlEl.className = 'big ' + pnlClass(S.today_pnl);
+
+  if (S.portfolio_value > 0 && S.today_pnl !== 0) {
+    const pct = S.today_pnl / S.portfolio_value * 100;
+    $('#ov-pnl-pct').textContent = fmtPct(pct);
+    $('#ov-pnl-pct').className = 'change ' + pnlClass(pct);
+  }
+
+  // Positions table
+  const tbody = $('#ov-positions');
+  if (S.positions.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">No open positions</td></tr>';
+  } else {
+    tbody.innerHTML = S.positions.slice(0, 8).map(p => {
+      const pl = Number(p.unrealized_pl || 0);
+      const plPct = Number(p.unrealized_plpc || 0);
+      return `<tr>
+        <td><span class="pos-symbol">${p.symbol}</span></td>
+        <td>${fmt(p.qty, p.qty % 1 ? 4 : 0)}</td>
+        <td>${fmtUsd(p.avg_entry_price)}</td>
+        <td>${fmtUsd(p.current_price)}</td>
+        <td class="${pnlClass(pl)}">${(pl>=0?'+':'') + fmtUsd(pl)}</td>
+        <td class="${pnlClass(plPct)}">${fmtPct(plPct)}</td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+// ── POSITIONS TAB ──
+function updatePositions() {
+  const tbody = $('#pos-table');
+  if (S.positions.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="11" class="empty">No open positions</td></tr>';
+    return;
+  }
+  tbody.innerHTML = S.positions.map(p => {
+    const pl = Number(p.unrealized_pl || 0);
+    const plPct = Number(p.unrealized_plpc || 0);
+    return `<tr>
+      <td><span class="pos-symbol">${p.symbol}</span><br><span class="pos-type">${p.asset_type || 'equity'}</span></td>
+      <td>${p.side || 'long'}</td>
+      <td>${p.asset_type || 'equity'}</td>
+      <td>${fmt(p.qty, p.qty % 1 ? 4 : 0)}</td>
+      <td>${fmtUsd(p.avg_entry_price)}</td>
+      <td>${fmtUsd(p.current_price)}</td>
+      <td>${fmtUsd(p.market_value)}</td>
+      <td class="${pnlClass(pl)}" style="font-weight:700">${(pl>=0?'+':'') + fmtUsd(pl)}</td>
+      <td class="${pnlClass(plPct)}" style="font-weight:700">${fmtPct(plPct)}</td>
+      <td>${p.stop_loss ? fmtUsd(p.stop_loss) : '--'}</td>
+      <td>${p.take_profit ? fmtUsd(p.take_profit) : '--'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── SIGNALS ──
+function renderSignals(signals, container, limit) {
+  if (!signals || signals.length === 0) {
+    container.innerHTML = '<div class="empty">No signals yet</div>';
+    return;
+  }
+  container.innerHTML = signals.slice(0, limit || 50).map(s => {
+    const dir = s.direction || 'HOLD';
+    const score = s.score || s.composite_score || 0;
+    const conf = s.confidence || s.conviction || 0;
+    const ticker = s.ticker || s.symbol || '?';
+    const price = s.price || s.entry_price || 0;
+    const ts = s.timestamp || s.ts || '';
+    const timeStr = typeof ts === 'string' ? ts.slice(0, 19).replace('T', ' ') : new Date(ts * 1000).toLocaleString();
+    return `<div class="signal-card">
+      <div class="signal-header">
+        <span class="signal-ticker">${ticker}</span>
+        ${dirBadge(dir)}
+        ${score >= 7 && conf >= 7 ? '<span class="badge badge-buy">THRESHOLD MET</span>' : ''}
+      </div>
+      <div class="signal-meta">
+        <div><dt>Score</dt><dd>${scoreFill(score)}</dd></div>
+        <div><dt>Confidence</dt><dd>${conf}/10</dd></div>
+        <div><dt>Price</dt><dd>${price ? fmtUsd(price) : '--'}</dd></div>
+        <div><dt>Stop</dt><dd>${s.stop_loss ? fmtUsd(s.stop_loss) : '--'}</dd></div>
+        <div><dt>Target</dt><dd>${s.take_profit ? fmtUsd(s.take_profit) : '--'}</dd></div>
+        <div><dt>Time</dt><dd style="font-size:10px">${timeStr}</dd></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function loadSignals() {
+  try {
+    const res = await fetch('/api/signals');
+    const data = await res.json();
+    S.signals = data.signals || [];
+    renderSignals(S.signals, $('#sig-list'));
+    renderSignals(S.signals.slice(0, 3), $('#ov-signals'), 3);
+  } catch(e) {
+    console.error('Failed to load signals:', e);
+  }
+}
+
+// ── PERFORMANCE ──
+async function loadPerformance() {
+  try {
+    const [perfRes, tradeRes] = await Promise.all([
+      fetch('/api/performance'),
+      fetch('/api/trades'),
+    ]);
+    const perf = await perfRes.json();
+    const tradeData = await tradeRes.json();
+
+    $('#perf-total').textContent = perf.total_trades || 0;
+    $('#perf-winrate').textContent = (perf.win_rate || 0) + '%';
+    const avgWin = $('#perf-avgwin');
+    avgWin.textContent = '+' + fmt(perf.avg_win_pct || 0) + '%';
+    avgWin.className = 'big positive';
+    const avgLoss = $('#perf-avgloss');
+    avgLoss.textContent = fmt(perf.avg_loss_pct || 0) + '%';
+    avgLoss.className = 'big negative';
+
+    // By ticker
+    const bt = perf.by_ticker || {};
+    const tickers = Object.entries(bt).sort((a,b) => b[1].total - a[1].total);
+    const btBody = $('#perf-byticker');
+    if (tickers.length === 0) {
+      btBody.innerHTML = '<tr><td colspan="6" class="empty">No data</td></tr>';
+    } else {
+      btBody.innerHTML = tickers.map(([sym, d]) => {
+        const wr = d.win_rate || (d.wins / d.total * 100);
+        const totalPnl = d.total_pnl_pct || 0;
+        return `<tr>
+          <td style="font-weight:700">${sym}</td>
+          <td>${d.total}</td>
+          <td class="positive">${d.wins}</td>
+          <td class="negative">${d.losses || d.total - d.wins}</td>
+          <td>${fmt(wr, 1)}%</td>
+          <td class="${pnlClass(totalPnl)}">${fmtPct(totalPnl)}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    // Trade log
+    const trades = tradeData.trades || [];
+    const trBody = $('#perf-trades');
+    if (trades.length === 0) {
+      trBody.innerHTML = '<tr><td colspan="6" class="empty">No trades</td></tr>';
+    } else {
+      trBody.innerHTML = trades.slice(-30).reverse().map(t => {
+        const pnl = t.pnl_pct || 0;
+        return `<tr>
+          <td style="font-weight:700">${t.ticker}</td>
+          <td>${t.side}</td>
+          <td>${fmtUsd(t.entry_price)}</td>
+          <td>${fmtUsd(t.exit_price)}</td>
+          <td class="${pnlClass(pnl)}" style="font-weight:700">${fmtPct(pnl)}</td>
+          <td class="${pnlClass(t.pnl_usd)}">${fmtUsd(t.pnl_usd)}</td>
+        </tr>`;
+      }).join('');
+    }
+  } catch(e) {
+    console.error('Failed to load performance:', e);
+  }
+}
+
+// ── EQUITY CURVE ──
+async function loadEquityCurve() {
+  try {
+    const res = await fetch('/api/equity');
+    const data = await res.json();
+    const points = data.points || [];
+    const container = $('#ov-equity-chart');
+    if (points.length < 2) {
+      container.innerHTML = '<div class="empty" style="width:100%">Not enough data</div>';
+      return;
+    }
+    const values = points.map(p => typeof p === 'number' ? p : p.value);
+    const max = Math.max(...values);
+    const min = Math.min(...values);
+    const range = max - min || 1;
+    const h = 120;
+    const barW = Math.max(2, Math.floor((container.offsetWidth - points.length) / points.length));
+
+    container.innerHTML = values.map((v, i) => {
+      const pct = ((v - min) / range) * 80 + 10;
+      const color = i > 0 && v >= values[i-1] ? 'var(--green)' : i > 0 ? 'var(--red)' : 'var(--blue)';
+      return `<div style="width:${barW}px;height:${pct}%;background:${color};border-radius:1px;opacity:0.7" title="${fmtUsd(v)}"></div>`;
+    }).join('');
+  } catch(e) {
+    console.error('Failed to load equity curve:', e);
+  }
+}
+
+// ── MONITORS ──
+async function loadMonitors() {
+  try {
+    const res = await fetch('/api/monitors');
+    const data = await res.json();
+    const alerts = data.alerts || [];
+    const container = $('#mon-alerts');
+    if (alerts.length === 0) {
+      container.innerHTML = '<div class="empty">No alerts — all monitors quiet</div>';
+      return;
+    }
+    container.innerHTML = alerts.map(a => `
+      <div class="alert-row ${a.severity || 'info'}">
+        <div class="alert-msg">${a.message || a.type || 'Alert'}</div>
+        <div class="alert-source">${a.monitor || ''} &middot; ${a.severity || 'info'}</div>
+      </div>
+    `).join('');
+
+    // Also update overview alerts
+    $('#ov-alerts').innerHTML = alerts.slice(0, 5).map(a => `
+      <div class="alert-row ${a.severity || 'info'}">
+        <div class="alert-msg">${a.message || a.type || 'Alert'}</div>
+        <div class="alert-source">${a.monitor || ''}</div>
+      </div>
+    `).join('') || '<div class="empty">No alerts</div>';
+  } catch(e) {
+    console.error('Failed to load monitors:', e);
+  }
+}
+
+// ── PLUGINS ──
+async function loadPlugins() {
+  try {
+    const res = await fetch('/api/plugins');
+    const data = await res.json();
+    const container = $('#plugin-list');
+    let html = '';
+    for (const [cat, plugins] of Object.entries(data)) {
+      for (const [name, info] of Object.entries(plugins)) {
+        const status = info.status || 'unknown';
+        const dotClass = status === 'ok' ? 'ok' : 'error';
+        html += `<div class="plugin-row">
+          <div class="plugin-dot ${dotClass}"></div>
+          <div class="plugin-name">${name}</div>
+          <div class="plugin-cat">${cat}</div>
+          <div style="font-size:11px;color:var(--text-dim)">${info.version || ''}</div>
+          <div style="font-size:11px;color:${status === 'ok' ? 'var(--green)' : 'var(--red)'}">${status}</div>
+        </div>`;
+      }
+    }
+    container.innerHTML = html || '<div class="empty">No plugins loaded</div>';
+  } catch(e) {
+    console.error('Failed to load plugins:', e);
+  }
+}
+
+// ── SYMBOL LOOKUP ──
+let lookupTimer = null;
+$('#lookup-input').addEventListener('input', e => {
+  clearTimeout(lookupTimer);
+  const sym = e.target.value.trim().toUpperCase();
+  if (sym.length < 1) { $('#lookup-result').innerHTML = ''; return; }
+  lookupTimer = setTimeout(() => doLookup(sym), 500);
+});
+$('#lookup-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    clearTimeout(lookupTimer);
+    const sym = e.target.value.trim().toUpperCase();
+    if (sym) doLookup(sym);
+  }
+});
+
+async function doLookup(symbol) {
+  const container = $('#lookup-result');
+  container.innerHTML = '<div class="empty">Loading...</div>';
+  try {
+    const [quoteRes, techRes] = await Promise.all([
+      fetch(`/api/quote/${symbol}`),
+      fetch(`/api/technicals/${symbol}`),
+    ]);
+    const quote = await quoteRes.json();
+    const tech = await techRes.json();
+
+    if (quote.error && !quote.price) {
+      container.innerHTML = `<div class="empty">Error: ${quote.error}</div>`;
+      return;
+    }
+
+    let html = '<div class="grid grid-2" style="margin-bottom:16px;">';
+
+    // Quote card
+    html += '<div class="card">';
+    html += '<div class="card-title">Quote</div>';
+    if (quote.price) {
+      const chgClass = pnlClass(quote.change_pct);
+      html += `
+        <div style="font-size:28px;font-weight:700;color:var(--text-bright);margin-bottom:8px">${fmtUsd(quote.price)}</div>
+        <div class="${chgClass}" style="font-size:16px;font-weight:600;margin-bottom:12px">${fmtPct(quote.change_pct)} (${quote.change >= 0 ? '+' : ''}${fmtUsd(quote.change)})</div>
+        <table>
+          <tr><td style="color:var(--text-dim)">Open</td><td>${fmtUsd(quote.open)}</td><td style="color:var(--text-dim)">Prev Close</td><td>${fmtUsd(quote.prev_close)}</td></tr>
+          <tr><td style="color:var(--text-dim)">High</td><td>${fmtUsd(quote.high)}</td><td style="color:var(--text-dim)">Low</td><td>${fmtUsd(quote.low)}</td></tr>
+          <tr><td style="color:var(--text-dim)">Volume</td><td>${(quote.volume || 0).toLocaleString()}</td><td style="color:var(--text-dim)">Avg Volume</td><td>${(quote.avg_volume || 0).toLocaleString()}</td></tr>
+          <tr><td style="color:var(--text-dim)">Bid</td><td>${fmtUsd(quote.bid)}</td><td style="color:var(--text-dim)">Ask</td><td>${fmtUsd(quote.ask)}</td></tr>
+          <tr><td style="color:var(--text-dim)">Vol Ratio</td><td>${quote.volume_ratio || '--'}</td><td style="color:var(--text-dim)">Source</td><td>${quote.source || '--'}</td></tr>
+        </table>
+      `;
+    } else {
+      html += '<div class="empty">No quote data</div>';
+    }
+    html += '</div>';
+
+    // Technicals card
+    html += '<div class="card">';
+    html += '<div class="card-title">Technical Indicators</div>';
+    if (Object.keys(tech).length > 1) {
+      const gaugeRow = (label, val, min, max, color) => {
+        if (val == null) return '';
+        const pct = Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100));
+        return `<div class="gauge">
+          <div class="gauge-label">${label}</div>
+          <div class="gauge-bar"><div class="gauge-fill" style="width:${pct}%;background:${color || 'var(--blue)'}"></div></div>
+          <div class="gauge-val">${fmt(val, label === 'RSI' ? 1 : 2)}</div>
+        </div>`;
+      };
+      const rsiColor = tech.rsi > 70 ? 'var(--red)' : tech.rsi < 30 ? 'var(--green)' : 'var(--blue)';
+      html += gaugeRow('RSI', tech.rsi, 0, 100, rsiColor);
+      html += gaugeRow('BB Pos', tech.bb_position, 0, 1, 'var(--purple)');
+      html += gaugeRow('Vol Ratio', tech.volume_ratio, 0, 4, 'var(--cyan)');
+
+      html += '<div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px">';
+      const techItem = (label, val) => val != null ? `<div><span style="color:var(--text-dim)">${label}:</span> <span style="font-weight:600">${typeof val === 'number' ? fmt(val, 2) : val}</span></div>` : '';
+      html += techItem('SMA 20', tech.sma_20);
+      html += techItem('SMA 50', tech.sma_50);
+      html += techItem('SMA 200', tech.sma_200);
+      html += techItem('EMA 9', tech.ema_9);
+      html += techItem('EMA 21', tech.ema_21);
+      html += techItem('MACD', tech.macd);
+      html += techItem('MACD Signal', tech.macd_signal);
+      html += techItem('MACD Cross', tech.macd_cross);
+      html += techItem('BB Upper', tech.bb_upper);
+      html += techItem('BB Lower', tech.bb_lower);
+      html += techItem('BB Squeeze', tech.bb_squeeze ? 'YES' : 'No');
+      html += techItem('ATR', tech.atr);
+      html += techItem('VWAP', tech.vwap);
+      html += techItem('Trend', tech.trend);
+      html += techItem('Above SMA20', tech.above_sma20 ? 'Yes' : 'No');
+      html += techItem('Above SMA50', tech.above_sma50 ? 'Yes' : 'No');
+      html += '</div>';
+    } else {
+      html += '<div class="empty">No technicals available</div>';
+    }
+    html += '</div>';
+
+    html += '</div>';
+    container.innerHTML = html;
+  } catch(e) {
+    container.innerHTML = `<div class="empty">Failed to fetch: ${e.message}</div>`;
+  }
+}
+
+// ── SSE CONNECTION ──
+function connectSSE() {
+  const es = new EventSource('/stream');
+
+  es.addEventListener('init', e => {
+    const data = JSON.parse(e.data);
+    Object.assign(S, data);
+    S.connected = true;
+    $('#sse-dot').classList.add('connected');
+    $('#sse-dot').title = 'SSE connected';
+    updateAll();
+  });
+
+  es.addEventListener('positions', e => {
+    const data = JSON.parse(e.data);
+    S.positions = data.positions || S.positions;
+    S.today_pnl = data.today_pnl ?? S.today_pnl;
+    S.portfolio_value = data.portfolio_value ?? S.portfolio_value;
+    updateHeader();
+    updateOverview();
+    updatePositions();
+  });
+
+  es.addEventListener('account', e => {
+    const data = JSON.parse(e.data);
+    Object.assign(S, data);
+    updateHeader();
+    updateOverview();
+    updatePositions();
+  });
+
+  es.addEventListener('signal', e => {
+    const data = JSON.parse(e.data);
+    S.last_signal = data;
+    S.signals.unshift(data);
+    renderSignals(S.signals.slice(0, 3), $('#ov-signals'), 3);
+  });
+
+  es.addEventListener('alerts', e => {
+    const data = JSON.parse(e.data);
+    const alerts = data.alerts || [];
+    if (alerts.length > 0) {
+      $('#ov-alerts').innerHTML = alerts.slice(0, 5).map(a => `
+        <div class="alert-row ${a.severity || 'info'}">
+          <div class="alert-msg">${a.message || ''}</div>
+          <div class="alert-source">${a.monitor || ''}</div>
+        </div>
+      `).join('');
+    }
+  });
+
+  es.addEventListener('heartbeat', () => {});
+
+  es.onerror = () => {
+    S.connected = false;
+    $('#sse-dot').classList.remove('connected');
+    $('#sse-dot').title = 'SSE disconnected — reconnecting...';
+  };
+}
+
+// ── UPDATE ALL ──
+function updateAll() {
+  updateHeader();
+  updateOverview();
+  updatePositions();
+  loadSignals();
+  loadEquityCurve();
+  loadMonitors();
+}
+
+// ── INIT ──
+connectSSE();
+// Fallback: poll REST if SSE fails
+setTimeout(() => {
+  if (!S.connected) {
+    fetch('/api/portfolio').then(r => r.json()).then(data => {
+      Object.assign(S, data);
+      updateAll();
+    }).catch(() => {});
+  }
+}, 3000);
+
+// Periodic refresh for non-SSE data
+setInterval(loadEquityCurve, 60000);
+setInterval(loadSignals, 30000);
+</script>
+</body>
+</html>
