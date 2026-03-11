@@ -32,6 +32,11 @@ try:
     from rich.panel import Panel
     from rich.prompt import Prompt, Confirm
     from rich.table import Table
+    from rich.columns import Columns
+    from rich.rule import Rule
+    from rich.align import Align
+    from rich.text import Text
+    from rich.padding import Padding
 except ImportError:
     print("Missing dependencies. Run: pip install rich")
     sys.exit(1)
@@ -129,11 +134,134 @@ def _test_command(cmd: list[str], timeout: int = 10) -> tuple[bool, str]:
         return False, str(e)
 
 
+# ── Fun UI helpers ───────────────────────────────────────────────────────
+
+_LOGO = r"""
+    ____               ______               __
+   / __ \_________    /_  __/________ ______/ /__  _____
+  / /_/ / ___/ __ \    / / / ___/ __ `/ __  / _ \/ ___/
+ / ____/ /  / /_/ /   / / / /  / /_/ / /_/ /  __/ /
+/_/   /_/   \____/   /_/ /_/   \__,_/\__,_/\___/_/
+"""
+
+_STEP_ICONS = {
+    1: ("link",     "OpenClaw"),
+    2: ("user",     "Trader Profile"),
+    3: ("building", "Broker"),
+    4: ("brain",    "AI Engine"),
+    5: ("chat",     "Discord"),
+    6: ("puzzle",   "Plugins"),
+}
+
+_TRADER_ARCHETYPES = {
+    ("conservative", "beginner", "swing"):    ("The Steady Builder",   "Patient, disciplined, building brick by brick."),
+    ("conservative", "beginner", "position"): ("The Patient Saver",    "Long-term vision, slow and steady wins the race."),
+    ("conservative", "intermediate", "swing"):("The Risk Manager",     "Calculated moves, always protecting the downside."),
+    ("moderate", "beginner", "swing"):        ("The Apprentice",       "Learning the ropes with balanced risk."),
+    ("moderate", "intermediate", "swing"):    ("The Balanced Trader",  "Data-driven, disciplined, consistent."),
+    ("moderate", "intermediate", "day_trade"):("The Precision Sniper", "Quick, focused strikes with solid risk management."),
+    ("moderate", "advanced", "swing"):        ("The Tactician",        "Strategic plays with market-tested discipline."),
+    ("aggressive", "intermediate", "day_trade"):("The Momentum Hunter","Riding waves, cutting losses fast, stacking gains."),
+    ("aggressive", "advanced", "day_trade"):  ("The Apex Predator",    "High conviction, high frequency, maximum intensity."),
+    ("aggressive", "advanced", "swing"):      ("The Big Game Hunter",  "Waiting for the perfect setup, then going big."),
+}
+_DEFAULT_ARCHETYPE = ("The Trader", "Forging your own path in the markets.")
+
+
+def _step_header(step: int, total: int = 6) -> None:
+    """Print a beautiful step header with progress indicator."""
+    icon, label = _STEP_ICONS.get(step, ("?", "Unknown"))
+    filled = step
+    empty = total - step
+
+    # Progress bar with blocks
+    bar = "[bold green]" + "=" * (filled * 4) + "[/bold green]"
+    if empty > 0:
+        bar += "[dim]" + "-" * (empty * 4) + "[/dim]"
+
+    console.print()
+    console.print(
+        f"  [dim]{bar}[/dim]  [bold]{step}[/bold][dim]/{total}[/dim]"
+    )
+    console.print(
+        f"  [bold cyan]Step {step} — {label}[/bold cyan]"
+    )
+    console.print()
+
+
+def _celebrate(message: str, style: str = "bold green") -> None:
+    """Print a celebration message with flair."""
+    console.print(f"\n  [{style}]{message}[/{style}]")
+
+
+def _get_archetype(risk: str, exp: str, style: str) -> tuple[str, str]:
+    """Get trader archetype based on profile traits."""
+    key = (risk, exp, style)
+    return _TRADER_ARCHETYPES.get(key, _DEFAULT_ARCHETYPE)
+
+
+def _print_welcome_banner() -> None:
+    """Print the awesome welcome banner."""
+    console.print()
+    console.print(
+        Panel(
+            Align.center(
+                Text.from_markup(
+                    f"[bold cyan]{_LOGO}[/bold cyan]\n"
+                    "[bold white]Setup Wizard[/bold white]\n\n"
+                    "[dim]Your AI trading co-pilot is about to come online.[/dim]\n"
+                    "[dim]Let's configure everything in ~3 minutes.[/dim]\n\n"
+                    "[dim italic]Press Ctrl+C at any time to cancel.[/dim italic]"
+                )
+            ),
+            border_style="cyan",
+            padding=(1, 4),
+        )
+    )
+    console.print()
+
+
+def _print_checkpoint(label: str) -> None:
+    """Print a mini checkpoint / completion marker."""
+    console.print(f"  [green]>>>[/green] {label}")
+
+
+def _broker_card(name: str, cfg: dict, num: int) -> Panel:
+    """Create a visually appealing broker card."""
+    assets_map = {
+        "alpaca":    "Stocks  Options  Crypto",
+        "tastytrade":"Options  Futures  Stocks  Crypto",
+        "ibkr":      "Stocks  Options  Futures  Forex  Crypto",
+        "snaptrade": "20+ brokers via one connection",
+        "tradier":   "Stocks  Options",
+        "schwab":    "Stocks  Options  Futures",
+        "coinbase":  "Crypto",
+    }
+    status_map = {
+        "alpaca":    "[green]Ready[/green]",
+        "tastytrade":"[green]Ready[/green]",
+        "ibkr":      "[green]Ready[/green]",
+        "snaptrade": "[green]Ready[/green]",
+        "tradier":   "[yellow]Beta[/yellow]",
+        "schwab":    "[dim]Coming Soon[/dim]",
+        "coinbase":  "[dim]Coming Soon[/dim]",
+    }
+    assets = assets_map.get(name, "")
+    status = status_map.get(name, "")
+
+    body = (
+        f"[bold]{cfg['label']}[/bold]\n"
+        f"[dim]{assets}[/dim]\n"
+        f"Status: {status}"
+    )
+    return Panel(body, title=f"[bold]{num}[/bold]", width=40, border_style="blue")
+
+
 # ── Wizard Steps ─────────────────────────────────────────────────────────────
 
 def _step_openclaw() -> dict:
     """Step 1: Check OpenClaw installation."""
-    console.print("\n[bold cyan]Step 1/6 — OpenClaw Integration[/bold cyan]\n")
+    _step_header(1)
 
     result = {"openclaw_available": False, "openclaw_version": None}
 
@@ -170,8 +298,13 @@ def _step_openclaw() -> dict:
 
 def _step_trader_profile(existing: dict) -> dict:
     """Step 2: Collect trader profile — account, risk, goals, recovery."""
-    console.print("\n[bold cyan]Step 2/6 — Trader Profile[/bold cyan]")
-    console.print("[dim]  This helps AI agents personalize analysis to YOUR situation.[/dim]\n")
+    _step_header(2)
+    console.print(
+        "  [dim]This helps AI agents personalize analysis to YOUR situation.[/dim]"
+    )
+    console.print(
+        "  [dim]Think of it as your trading DNA — the AI will adapt to match.[/dim]\n"
+    )
 
     profile = existing.get("trader_profile", {})
 
@@ -263,11 +396,20 @@ def _step_trader_profile(existing: dict) -> dict:
 
     # ── Behavioral Risk (Schwab IPQ-style) ────────────────────────
     console.print("\n  [bold]Risk Behavior[/bold]")
-    console.print("  If your portfolio dropped 20% in a month, what would you do?")
-    console.print("    1. Sell everything")
-    console.print("    2. Sell some to reduce risk")
-    console.print("    3. Hold and wait for recovery")
-    console.print("    4. Buy more at the lower prices")
+    console.print(
+        Panel(
+            "[bold]Scenario:[/bold] Your portfolio just dropped [red]20%[/red] in a month.\n"
+            "What do you do?\n\n"
+            "  1. [red]Sell everything[/red]       -- \"Get me out!\"\n"
+            "  2. [yellow]Sell some[/yellow]             -- \"Reduce the pain\"\n"
+            "  3. [green]Hold and wait[/green]          -- \"This too shall pass\"\n"
+            "  4. [bold green]Buy more[/bold green]              -- \"Stocks on sale!\"",
+            title="[bold] Gut Check [/bold]",
+            border_style="yellow",
+            width=60,
+            padding=(1, 2),
+        )
+    )
 
     reaction_map = {"1": "sell_all", "2": "sell_some", "3": "hold", "4": "buy_more"}
     current_reaction = profile.get("reaction_to_loss", "hold")
@@ -372,10 +514,19 @@ def _step_trader_profile(existing: dict) -> dict:
 
     # ── Autonomy ──────────────────────────────────────────────────
     console.print("\n  [bold]Autonomy Level[/bold]")
-    console.print("    1. Notify only    — AI analyzes, you trade manually")
-    console.print("    2. Suggest        — AI proposes trades, you approve (default)")
-    console.print("    3. Semi-auto      — AI auto-trades within conservative limits")
-    console.print("    4. Full auto      — AI executes all approved trades")
+    console.print("  [dim]How much freedom should the AI have?[/dim]\n")
+    console.print(
+        "    1. [dim]Notify only[/dim]    -- AI watches, you drive"
+    )
+    console.print(
+        "    2. [bold]Suggest[/bold]        -- AI co-pilot: proposes trades, you approve"
+    )
+    console.print(
+        "    3. [yellow]Semi-auto[/yellow]      -- AI auto-trades small positions, asks for big ones"
+    )
+    console.print(
+        "    4. [red]Full auto[/red]      -- AI takes the wheel (risk limits still enforced)"
+    )
 
     auto_map = {"1": "notify_only", "2": "suggest", "3": "semi_auto", "4": "full_auto"}
     current_auto = profile.get("autonomy_level", "suggest")
@@ -397,10 +548,21 @@ def _step_trader_profile(existing: dict) -> dict:
     cooldown_hours = 24
 
     if recovery_mode:
-        console.print("\n  [bold yellow]Recovery Plan[/bold yellow]")
-        console.print(f"  Account: ${account_size:,.0f} → "
-                       f"Target: ${account_size + losses_to_recover:,.0f} "
-                       f"(recover ${losses_to_recover:,.0f})")
+        target = account_size + losses_to_recover
+        pct_down = (losses_to_recover / target * 100) if target > 0 else 0
+        console.print()
+        console.print(
+            Panel(
+                f"[bold]Current:[/bold] ${account_size:,.0f}  -->  "
+                f"[bold green]Target:[/bold green] ${target:,.0f}  "
+                f"[dim]({pct_down:.0f}% to recover)[/dim]\n\n"
+                "[dim]Every successful trader has been here. "
+                "The difference is having a plan.[/dim]",
+                title="[bold yellow] Recovery Mode [/bold yellow]",
+                border_style="yellow",
+                padding=(1, 2),
+            )
+        )
 
         if monthly_deposit > 0:
             months_deposits_only = losses_to_recover / monthly_deposit
@@ -444,9 +606,16 @@ def _step_trader_profile(existing: dict) -> dict:
             except ValueError:
                 pass
 
-        console.print("\n    1. [green]Conservative rebuild[/green] — Slow, safe, no risk increase")
-        console.print("    2. [yellow]Moderate recovery[/yellow]    — Slightly larger positions")
-        console.print("    3. [red]Aggressive recovery[/red]   — Maximum acceptable risk")
+        console.print("\n  [bold]Recovery Strategy:[/bold]")
+        console.print(
+            "    1. [green]Conservative rebuild[/green]  -- Tortoise mode: slow, safe, no shortcuts"
+        )
+        console.print(
+            "    2. [yellow]Moderate recovery[/yellow]    -- Balanced: slightly larger bets, strict rules"
+        )
+        console.print(
+            "    3. [red]Aggressive recovery[/red]   -- Hare mode: max risk within safety limits"
+        )
 
         rec_map = {"1": "conservative_rebuild", "2": "moderate", "3": "aggressive"}
         current_rec = profile.get("recovery_strategy", "moderate")
@@ -466,11 +635,25 @@ def _step_trader_profile(existing: dict) -> dict:
         if recovery_timeline_weeks and losses_to_recover > 0:
             weekly_target = losses_to_recover / recovery_timeline_weeks
             weekly_pct = (weekly_target / account_size) * 100
-            console.print(f"\n  [dim]Weekly target: ${weekly_target:,.0f}/wk ({weekly_pct:.1f}% of account)[/dim]")
+            console.print(
+                f"\n  Weekly target: [bold]${weekly_target:,.0f}/wk[/bold] "
+                f"({weekly_pct:.1f}% of account)"
+            )
             if weekly_pct > 10:
-                console.print("  [red]That pace is very aggressive — AI will prioritize risk management.[/red]")
+                console.print(
+                    "  [red]That's a sprint, not a jog. "
+                    "AI will keep you from blowing up.[/red]"
+                )
             elif weekly_pct > 5:
-                console.print("  [yellow]Ambitious but achievable with discipline.[/yellow]")
+                console.print(
+                    "  [yellow]Ambitious but doable. "
+                    "Discipline is your edge here.[/yellow]"
+                )
+            else:
+                console.print(
+                    "  [green]Steady pace. "
+                    "Consistency will get you there.[/green]"
+                )
 
     # ── Build profile dict ────────────────────────────────────────
     result = {
@@ -510,30 +693,69 @@ def _step_trader_profile(existing: dict) -> dict:
         "cooldown_hours": cooldown_hours,
     }
 
-    # Summary
-    console.print("\n  [bold]Profile Summary[/bold]")
-    summary = Table(show_header=False)
-    summary.add_column("Key", style="bold")
-    summary.add_column("Value")
-    summary.add_row("Account", f"${account_size:,.0f}")
+    # ── Archetype Reveal ──────────────────────────────────────────
+    archetype_name, archetype_desc = _get_archetype(
+        risk_tolerance, exp_map[exp_choice], trading_style,
+    )
+
+    console.print()
+    console.print(Rule("[bold cyan] Your Trader Profile [/bold cyan]"))
+    console.print()
+
+    # Left column: stats
+    stats_lines = [
+        f"[bold]Account:[/bold]        ${account_size:,.0f}",
+    ]
     if monthly_deposit > 0:
-        summary.add_row("Monthly deposit", f"${monthly_deposit:,.0f}")
+        stats_lines.append(f"[bold]Monthly add:[/bold]    ${monthly_deposit:,.0f}")
     if recovery_mode:
-        summary.add_row("Recovery target", f"${account_size + losses_to_recover:,.0f}")
-        summary.add_row("Recovery strategy", recovery_strategy)
-        if loss_cause:
-            summary.add_row("Loss cause", loss_cause)
-    summary.add_row("Risk tolerance", risk_tolerance)
-    summary.add_row("Loss reaction", reaction_to_loss)
-    summary.add_row("Max single loss", f"${worst_acceptable_loss:,.0f}")
-    summary.add_row("Position sizing", position_sizing_method)
-    summary.add_row("Style", f"{trading_style} ({period_map.get(trading_style, 'days')})")
-    summary.add_row("Availability", market_hours)
-    summary.add_row("Assets", ", ".join(preferred_assets))
-    summary.add_row("Experience", exp_map[exp_choice])
-    summary.add_row("Goal", goal_map[goal_choice])
-    summary.add_row("Autonomy", autonomy_level)
-    console.print(summary)
+        stats_lines.append(
+            f"[bold]Recovery:[/bold]       ${losses_to_recover:,.0f} "
+            f"-> ${account_size + losses_to_recover:,.0f}"
+        )
+    stats_lines += [
+        f"[bold]Risk:[/bold]           {risk_tolerance}",
+        f"[bold]Style:[/bold]          {trading_style} ({period_map.get(trading_style, 'days')})",
+        f"[bold]Assets:[/bold]         {', '.join(preferred_assets)}",
+        f"[bold]Experience:[/bold]     {exp_map[exp_choice]}",
+        f"[bold]Autonomy:[/bold]       {autonomy_level}",
+    ]
+    stats_text = "\n".join(stats_lines)
+
+    # Right column: archetype card
+    risk_colors = {
+        "conservative": "green",
+        "moderate": "yellow",
+        "aggressive": "red",
+    }
+    risk_color = risk_colors.get(risk_tolerance, "white")
+
+    archetype_card = Panel(
+        Align.center(
+            Text.from_markup(
+                f"\n[bold {risk_color}]{archetype_name}[/bold {risk_color}]\n\n"
+                f"[italic]{archetype_desc}[/italic]\n\n"
+                f"[dim]{risk_tolerance.upper()} | "
+                f"{exp_map[exp_choice].upper()} | "
+                f"{trading_style.upper()}[/dim]\n"
+            )
+        ),
+        title="[bold]Your Archetype[/bold]",
+        border_style=risk_color,
+        width=44,
+    )
+
+    console.print(
+        Columns(
+            [
+                Padding(Text.from_markup(stats_text), (1, 2)),
+                archetype_card,
+            ],
+            padding=(0, 2),
+        )
+    )
+
+    _celebrate("Profile locked in. The AI knows who you are now.")
 
     return result
 
@@ -711,15 +933,27 @@ def _step_broker(
     env: dict[str, str],
 ) -> tuple[dict[str, str], list[str], str]:
     """Step 3: Configure broker(s) — multi-broker selection."""
+    _step_header(3)
+
     console.print(
-        "\n[bold cyan]Step 3/6 — Broker Configuration[/bold cyan]\n"
+        "  [dim]Connect your brokerage to enable live trading, "
+        "portfolio sync, and real-time data.[/dim]\n"
     )
 
     broker_names = list(_BROKER_CONFIGS.keys())
+
+    # Show broker cards in a grid
+    cards = []
     for i, name in enumerate(broker_names, 1):
         cfg = _BROKER_CONFIGS[name]
-        console.print(f"    {i}. {cfg['label']}")
-    console.print(f"    s. Skip (no broker)")
+        cards.append(_broker_card(name, cfg, i))
+
+    # Print cards in rows of 2
+    for row_start in range(0, len(cards), 2):
+        row_cards = cards[row_start:row_start + 2]
+        console.print(Columns(row_cards, padding=(0, 1)))
+
+    console.print(f"\n    [dim]s. Skip (no broker — you can add one later)[/dim]")
 
     choice = Prompt.ask(
         "  Select brokers (comma-separated, e.g. '1,4')", default="1",
@@ -763,7 +997,7 @@ def _step_broker(
         except ValueError:
             pass
 
-    console.print(f"  [green]Primary broker: {primary}[/green]")
+    _celebrate(f"Primary broker: {primary} -- connected and ready.")
     return env, selected, primary
 
 
@@ -914,8 +1148,12 @@ def _get_broker_plugin_instance(broker_name: str):
 
 
 def _step_llm(env: dict[str, str]) -> dict[str, str]:
-    """Step 3: Configure LLM provider."""
-    console.print("\n[bold cyan]Step 4/6 — LLM Provider[/bold cyan]\n")
+    """Step 4: Configure LLM provider."""
+    _step_header(4)
+
+    console.print(
+        "  [dim]Choose the AI brain that powers your analysis agents.[/dim]\n"
+    )
 
     providers = {
         "1": ("anthropic", "ANTHROPIC_API_KEY", "Anthropic (Claude)"),
@@ -923,10 +1161,18 @@ def _step_llm(env: dict[str, str]) -> dict[str, str]:
         "3": ("google", "GOOGLE_API_KEY", "Google (Gemini)"),
     }
 
-    console.print("  Available providers:")
+    provider_cards = []
     for num, (_, _, label) in providers.items():
-        marker = " (recommended)" if num == "1" else ""
-        console.print(f"    {num}. {label}{marker}")
+        marker = " [green](recommended)[/green]" if num == "1" else ""
+        provider_cards.append(
+            Panel(
+                f"[bold]{label}[/bold]{marker}",
+                title=f"[bold]{num}[/bold]",
+                width=30,
+                border_style="blue" if num == "1" else "dim",
+            )
+        )
+    console.print(Columns(provider_cards, padding=(0, 1)))
 
     choice = Prompt.ask("  Select provider", choices=["1", "2", "3"], default="1")
     provider, env_key, label = providers[choice]
@@ -948,8 +1194,8 @@ def _step_llm(env: dict[str, str]) -> dict[str, str]:
 
 
 def _step_discord(env: dict[str, str], openclaw_info: dict) -> dict[str, str]:
-    """Step 4: Verify Discord channels."""
-    console.print("\n[bold cyan]Step 5/6 — Discord Channels[/bold cyan]\n")
+    """Step 5: Verify Discord channels."""
+    _step_header(5)
 
     if not openclaw_info.get("openclaw_available"):
         console.print("  [dim]Skipped — openclaw not available.[/dim]")
@@ -977,8 +1223,10 @@ def _step_discord(env: dict[str, str], openclaw_info: dict) -> dict[str, str]:
 
 
 def _step_plugins() -> dict:
-    """Step 5: Review and toggle plugins."""
-    console.print("\n[bold cyan]Step 6/6 — Plugin Configuration[/bold cyan]\n")
+    """Step 6: Review and toggle plugins."""
+    _step_header(6)
+
+    console.print("  [dim]These are the modules powering your trading system.[/dim]\n")
 
     plugin_cfg: dict = {}
 
@@ -1107,12 +1355,7 @@ def run_check() -> None:
 
 def run_wizard() -> None:
     """Run the full interactive setup wizard."""
-    console.print(Panel(
-        "[bold]Pro-Trader Setup Wizard[/bold]\n"
-        "Configure Pro-Trader as an OpenClaw plugin.\n"
-        "Press Ctrl+C at any time to cancel.",
-        style="cyan",
-    ))
+    _print_welcome_banner()
 
     env = _load_env()
     user_cfg = _load_user_config()
@@ -1140,31 +1383,83 @@ def run_wizard() -> None:
     plugin_cfg = _step_plugins()
 
     # ── Summary & Write ──────────────────────────────────────────────────
-    console.print("\n[bold cyan]Summary[/bold cyan]\n")
+    console.print()
+    console.print(Rule("[bold cyan] Final Review [/bold cyan]"))
+    console.print()
 
     llm_provider = env.pop("_llm_provider", "anthropic")
 
-    summary = Table(show_header=False)
-    summary.add_column("Key", style="bold")
-    summary.add_column("Value")
-
     alpaca_url = env.get("ALPACA_BASE_URL", "")
-    summary.add_row("Account", f"${trader_profile.get('account_size', 0):,.0f}")
-    summary.add_row("Risk tolerance", trader_profile.get("risk_tolerance", "moderate"))
-    if trader_profile.get("recovery_mode"):
-        summary.add_row("Recovery mode", f"recover ${trader_profile.get('losses_to_recover', 0):,.0f}")
     broker_display = primary_broker or "none"
     if primary_broker == "alpaca":
         broker_display += " (paper)" if "paper" in alpaca_url else " (LIVE)"
     if len(selected_brokers) > 1:
         broker_display += f" + {len(selected_brokers) - 1} more"
+
+    # Build the archetype info
+    archetype_name, archetype_desc = _get_archetype(
+        trader_profile.get("risk_tolerance", "moderate"),
+        trader_profile.get("experience_level", "intermediate"),
+        trader_profile.get("trading_style", "swing"),
+    )
+
+    # Left: config summary table
+    summary = Table(show_header=False, border_style="dim", padding=(0, 1))
+    summary.add_column("Key", style="bold", min_width=16)
+    summary.add_column("Value")
+    summary.add_row("Account", f"${trader_profile.get('account_size', 0):,.0f}")
+    summary.add_row("Risk", trader_profile.get("risk_tolerance", "moderate"))
+    if trader_profile.get("recovery_mode"):
+        summary.add_row(
+            "Recovery",
+            f"${trader_profile.get('losses_to_recover', 0):,.0f}"
+        )
     summary.add_row("Broker", broker_display)
-    summary.add_row("LLM provider", llm_provider)
-    summary.add_row("OpenClaw", "available" if openclaw_info.get("openclaw_available") else "not installed")
-    summary.add_row("Plugins toggled", str(len(plugin_cfg)) if plugin_cfg else "none")
-    summary.add_row(".env location", str(_ENV_FILE))
-    summary.add_row("Config location", str(_USER_CONFIG))
-    console.print(summary)
+    summary.add_row("AI Engine", llm_provider)
+    summary.add_row(
+        "Discord",
+        "[green]connected[/green]"
+        if openclaw_info.get("openclaw_available")
+        else "[dim]offline[/dim]",
+    )
+    summary.add_row("Plugins", str(len(plugin_cfg)) if plugin_cfg else "defaults")
+    summary.add_row(".env", str(_ENV_FILE))
+    summary.add_row("Config", str(_USER_CONFIG))
+
+    # Right: archetype + readiness gauge
+    risk_color = {
+        "conservative": "green",
+        "moderate": "yellow",
+        "aggressive": "red",
+    }.get(trader_profile.get("risk_tolerance", "moderate"), "white")
+
+    systems_ready = sum([
+        bool(primary_broker),
+        bool(llm_provider),
+        openclaw_info.get("openclaw_available", False),
+        True,  # plugins always present
+    ])
+    gauge = (
+        "[green]=====[/green]" if systems_ready >= 4
+        else "[green]====[/green][dim]=[/dim]" if systems_ready == 3
+        else "[yellow]===[/yellow][dim]==[/dim]" if systems_ready == 2
+        else "[red]==[/red][dim]===[/dim]"
+    )
+
+    right_panel = Panel(
+        Align.center(
+            Text.from_markup(
+                f"\n[bold {risk_color}]{archetype_name}[/bold {risk_color}]\n"
+                f"[italic]{archetype_desc}[/italic]\n\n"
+                f"Systems: {gauge} {systems_ready}/4\n"
+            )
+        ),
+        title="[bold]Battle Station[/bold]",
+        border_style=risk_color,
+        width=40,
+    )
+
+    console.print(Columns([summary, right_panel], padding=(0, 2)))
 
     if not Confirm.ask("\n  Write configuration files?", default=True):
         console.print("[yellow]Cancelled — no files written.[/yellow]")
@@ -1188,16 +1483,27 @@ def run_wizard() -> None:
     console.print(f"  [green]Wrote {_USER_CONFIG}[/green]")
 
     # Final message
-    console.print(Panel(
-        "[bold green]Setup complete![/bold green]\n\n"
-        "Next steps:\n"
-        "  pro-trader health         — verify all systems\n"
-        "  pro-trader plugin list    — see active plugins\n"
-        "  pro-trader analyze NVDA   — test the pipeline\n"
-        "  pro-trader setup --check  — re-check anytime\n"
-        "  pro-trader setup --update — update Pro-Trader",
-        style="green",
-    ))
+    console.print()
+    console.print(
+        Panel(
+            Align.center(
+                Text.from_markup(
+                    "[bold green]Setup complete! Your trading co-pilot is online.[/bold green]\n\n"
+                    f"Archetype: [bold]{archetype_name}[/bold]\n\n"
+                    "[bold]What's next?[/bold]\n\n"
+                    "  [cyan]pro-trader health[/cyan]         verify all systems\n"
+                    "  [cyan]pro-trader analyze NVDA[/cyan]   run your first analysis\n"
+                    "  [cyan]pro-trader sync[/cyan]           pull live account data\n"
+                    "  [cyan]pro-trader broker list[/cyan]    see connected brokers\n"
+                    "  [cyan]pro-trader scan[/cyan]           scan your watchlist\n\n"
+                    "[dim]May your entries be precise and your exits be timely.[/dim]"
+                )
+            ),
+            border_style="green",
+            padding=(1, 4),
+            title="[bold green] All Systems Go [/bold green]",
+        )
+    )
 
 
 # ── Update mode ──────────────────────────────────────────────────────────────
