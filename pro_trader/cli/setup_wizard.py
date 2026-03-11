@@ -4,7 +4,8 @@ Pro-Trader Setup Wizard — interactive first-time configuration.
 Guides users through:
   1. OpenClaw connectivity check
   2. Trader Profile (account size, risk, goals, recovery)
-  3. Broker API keys (Alpaca)
+  3. Broker selection + API keys (Alpaca, Tastytrade, IBKR, SnapTrade, etc.)
+  3b. Optional: sync profile from live broker account data
   4. LLM provider selection + key
   5. Discord channel verification
   6. Plugin enable/disable
@@ -537,68 +538,379 @@ def _step_trader_profile(existing: dict) -> dict:
     return result
 
 
-def _step_broker(env: dict[str, str]) -> dict[str, str]:
-    """Step 3: Configure broker API keys."""
-    console.print("\n[bold cyan]Step 3/6 — Broker Configuration (Alpaca)[/bold cyan]\n")
+_BROKER_CONFIGS = {
+    "alpaca": {
+        "label": "Alpaca (stocks, options, crypto)",
+        "env_keys": {
+            "ALPACA_API_KEY": ("Alpaca API key", False),
+            "ALPACA_SECRET_KEY": ("Alpaca secret key", True),
+        },
+        "has_paper": True,
+        "test_cmd": (
+            "import alpaca_trade_api as t; "
+            "a=t.REST(); print(a.get_account().status)"
+        ),
+        "test_env_map": {
+            "ALPACA_API_KEY": "APCA_API_KEY_ID",
+            "ALPACA_SECRET_KEY": "APCA_API_SECRET_KEY",
+            "ALPACA_BASE_URL": "APCA_API_BASE_URL",
+        },
+    },
+    "tastytrade": {
+        "label": "Tastytrade (options, futures, stocks, crypto)",
+        "env_keys": {
+            "TASTYTRADE_USERNAME": ("Tastytrade username", False),
+            "TASTYTRADE_PASSWORD": ("Tastytrade password", True),
+        },
+        "has_paper": False,
+        "test_cmd": (
+            "from tastytrade import Session; "
+            "import os; "
+            "s=Session(os.environ['TASTYTRADE_USERNAME'], "
+            "os.environ['TASTYTRADE_PASSWORD']); print('ok')"
+        ),
+        "test_env_map": {},
+    },
+    "ibkr": {
+        "label": "Interactive Brokers (requires TWS/Gateway running)",
+        "env_keys": {
+            "IBKR_HOST": ("TWS/Gateway host", False),
+            "IBKR_PORT": ("TWS/Gateway port", False),
+            "IBKR_CLIENT_ID": ("Client ID", False),
+        },
+        "has_paper": False,
+        "test_cmd": None,
+        "test_env_map": {},
+    },
+    "snaptrade": {
+        "label": "SnapTrade (20+ brokers: Robinhood, Fidelity, Schwab...)",
+        "env_keys": {
+            "SNAPTRADE_CLIENT_ID": ("SnapTrade client ID", False),
+            "SNAPTRADE_CONSUMER_KEY": ("SnapTrade consumer key", True),
+        },
+        "has_paper": False,
+        "test_cmd": None,
+        "test_env_map": {},
+    },
+    "tradier": {
+        "label": "Tradier (stocks, options)",
+        "env_keys": {
+            "TRADIER_ACCESS_TOKEN": ("Tradier access token", True),
+            "TRADIER_ACCOUNT_ID": ("Tradier account ID", False),
+        },
+        "has_paper": False,
+        "test_cmd": None,
+        "test_env_map": {},
+    },
+    "schwab": {
+        "label": "Charles Schwab (stub — OAuth pending)",
+        "env_keys": {
+            "SCHWAB_APP_KEY": ("Schwab app key", False),
+            "SCHWAB_APP_SECRET": ("Schwab app secret", True),
+        },
+        "has_paper": False,
+        "test_cmd": None,
+        "test_env_map": {},
+    },
+    "coinbase": {
+        "label": "Coinbase (crypto — stub)",
+        "env_keys": {
+            "COINBASE_API_KEY": ("Coinbase API key", False),
+            "COINBASE_API_SECRET": ("Coinbase API secret", True),
+        },
+        "has_paper": False,
+        "test_cmd": None,
+        "test_env_map": {},
+    },
+}
 
-    current_key = env.get("ALPACA_API_KEY", "")
-    current_secret = env.get("ALPACA_SECRET_KEY", "")
-    current_url = env.get("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
 
-    has_key = current_key and not _is_placeholder(current_key)
-    has_secret = current_secret and not _is_placeholder(current_secret)
+def _configure_single_broker(
+    broker_name: str, env: dict[str, str],
+) -> bool:
+    """Collect credentials for a single broker. Returns True if configured."""
+    cfg = _BROKER_CONFIGS.get(broker_name)
+    if not cfg:
+        return False
 
-    if has_key and has_secret:
-        console.print(f"  Existing API key:    {_mask(current_key)}")
-        console.print(f"  Existing secret:     {_mask(current_secret)}")
-        console.print(f"  Base URL:            {current_url}")
-        if not Confirm.ask("  Update broker keys?", default=False):
-            return env
+    console.print(f"\n  [bold]{cfg['label']}[/bold]")
 
-    api_key = Prompt.ask(
-        "  Alpaca API key",
-        default=current_key if has_key else "",
-    )
-    secret_key = Prompt.ask(
-        "  Alpaca secret key",
-        default=current_secret if has_secret else "",
-        password=True,
-    )
+    for env_key, (prompt_text, is_secret) in cfg["env_keys"].items():
+        current = env.get(env_key, "")
+        has_val = current and not _is_placeholder(current)
+        if has_val:
+            console.print(f"    {prompt_text}: {_mask(current)}")
+        val = Prompt.ask(
+            f"    {prompt_text}",
+            default=current if has_val else "",
+            password=is_secret,
+        )
+        env[env_key] = val
 
-    paper = Confirm.ask("  Use paper trading?", default=True)
-    base_url = "https://paper-api.alpaca.markets" if paper else "https://api.alpaca.markets"
-
-    if not paper:
-        console.print("  [bold red]WARNING: Live trading selected. Real money at risk.[/bold red]")
-        if not Confirm.ask("  Confirm live trading?", default=False):
-            base_url = "https://paper-api.alpaca.markets"
-            console.print("  [green]Switched back to paper trading.[/green]")
-
-    env["ALPACA_API_KEY"] = api_key
-    env["ALPACA_SECRET_KEY"] = secret_key
-    env["ALPACA_BASE_URL"] = base_url
-
-    # Validate connection
-    if api_key and not _is_placeholder(api_key):
-        console.print("  Testing Alpaca connection...", end=" ")
-        try:
-            test_env = os.environ.copy()
-            test_env["APCA_API_KEY_ID"] = api_key
-            test_env["APCA_API_SECRET_KEY"] = secret_key
-            test_env["APCA_API_BASE_URL"] = base_url
-            r = subprocess.run(
-                [sys.executable, "-c",
-                 "import alpaca_trade_api as t; a=t.REST(); print(a.get_account().status)"],
-                capture_output=True, text=True, timeout=15, env=test_env,
+    # Paper trading toggle for Alpaca
+    if cfg["has_paper"]:
+        paper = Confirm.ask("    Use paper trading?", default=True)
+        base_url = (
+            "https://paper-api.alpaca.markets" if paper
+            else "https://api.alpaca.markets"
+        )
+        if not paper:
+            console.print(
+                "    [bold red]WARNING: Live trading. "
+                "Real money at risk.[/bold red]"
             )
-            if r.returncode == 0 and r.stdout.strip():
-                console.print(f"[green]{r.stdout.strip()}[/green]")
-            else:
-                console.print(f"[yellow]could not verify ({r.stderr.strip()[:80]})[/yellow]")
-        except Exception:
-            console.print("[yellow]skipped (alpaca-trade-api not installed)[/yellow]")
+            if not Confirm.ask("    Confirm live trading?", default=False):
+                base_url = "https://paper-api.alpaca.markets"
+                console.print(
+                    "    [green]Switched back to paper trading.[/green]"
+                )
+        env["ALPACA_BASE_URL"] = base_url
 
-    return env
+    # Test connection if available
+    test_cmd = cfg.get("test_cmd")
+    if test_cmd:
+        has_creds = all(
+            env.get(k, "") and not _is_placeholder(env.get(k, ""))
+            for k in cfg["env_keys"]
+        )
+        if has_creds:
+            console.print(
+                f"    Testing {broker_name} connection...", end=" ",
+            )
+            try:
+                test_env = os.environ.copy()
+                # Map env vars for the test subprocess
+                for src, dst in cfg.get("test_env_map", {}).items():
+                    test_env[dst] = env.get(src, "")
+                for k in cfg["env_keys"]:
+                    test_env[k] = env.get(k, "")
+                r = subprocess.run(
+                    [sys.executable, "-c", test_cmd],
+                    capture_output=True, text=True, timeout=15,
+                    env=test_env,
+                )
+                if r.returncode == 0 and r.stdout.strip():
+                    console.print(
+                        f"[green]{r.stdout.strip()}[/green]"
+                    )
+                else:
+                    err = r.stderr.strip()[:80]
+                    console.print(
+                        f"[yellow]could not verify ({err})[/yellow]"
+                    )
+            except Exception:
+                console.print(
+                    f"[yellow]skipped ({broker_name} SDK "
+                    f"not installed)[/yellow]"
+                )
+
+    return True
+
+
+def _step_broker(
+    env: dict[str, str],
+) -> tuple[dict[str, str], list[str], str]:
+    """Step 3: Configure broker(s) — multi-broker selection."""
+    console.print(
+        "\n[bold cyan]Step 3/6 — Broker Configuration[/bold cyan]\n"
+    )
+
+    broker_names = list(_BROKER_CONFIGS.keys())
+    for i, name in enumerate(broker_names, 1):
+        cfg = _BROKER_CONFIGS[name]
+        console.print(f"    {i}. {cfg['label']}")
+    console.print(f"    s. Skip (no broker)")
+
+    choice = Prompt.ask(
+        "  Select brokers (comma-separated, e.g. '1,4')", default="1",
+    )
+
+    if choice.strip().lower() == "s":
+        return env, [], ""
+
+    selected = []
+    for part in choice.split(","):
+        part = part.strip()
+        try:
+            idx = int(part) - 1
+            if 0 <= idx < len(broker_names):
+                selected.append(broker_names[idx])
+        except ValueError:
+            # Try as broker name
+            if part in broker_names:
+                selected.append(part)
+
+    if not selected:
+        console.print("  [yellow]No valid broker selected — skipping[/yellow]")
+        return env, [], ""
+
+    # Configure each selected broker
+    for broker_name in selected:
+        _configure_single_broker(broker_name, env)
+
+    # Select primary broker
+    primary = selected[0]
+    if len(selected) > 1:
+        console.print(f"\n  Selected brokers: {', '.join(selected)}")
+        console.print("  Which broker should handle trade execution?")
+        for i, name in enumerate(selected, 1):
+            console.print(f"    {i}. {name}")
+        p_choice = Prompt.ask("  Primary broker", default="1")
+        try:
+            p_idx = int(p_choice) - 1
+            if 0 <= p_idx < len(selected):
+                primary = selected[p_idx]
+        except ValueError:
+            pass
+
+    console.print(f"  [green]Primary broker: {primary}[/green]")
+    return env, selected, primary
+
+
+def _try_broker_sync(
+    env: dict[str, str],
+    brokers: list[str],
+    trader_profile: dict,
+) -> dict:
+    """After broker setup, offer to sync profile from live account data."""
+    if not brokers:
+        return trader_profile
+
+    if not Confirm.ask(
+        "\n  Sync trader profile from live broker account data?",
+        default=True,
+    ):
+        return trader_profile
+
+    for broker_name in brokers:
+        console.print(
+            f"  Fetching account data from {broker_name}...", end=" ",
+        )
+        try:
+            summary = _fetch_broker_summary(broker_name, env)
+            if summary and summary.get("equity", 0) > 0:
+                equity = summary["equity"]
+                console.print(
+                    f"[green]${equity:,.2f} equity[/green]"
+                )
+                trader_profile["account_size"] = equity
+                trader_profile["peak_account_value"] = max(
+                    equity,
+                    trader_profile.get("peak_account_value") or 0,
+                )
+                if summary.get("pattern_day_trader"):
+                    trader_profile["trading_style"] = "day_trade"
+                    console.print(
+                        "    [dim]Pattern day trader detected[/dim]"
+                    )
+                if summary.get("position_symbols"):
+                    symbols = summary["position_symbols"]
+                    console.print(
+                        f"    Open positions: "
+                        f"{', '.join(symbols[:10])}"
+                    )
+                console.print(
+                    f"    Updated account_size → ${equity:,.2f}"
+                )
+                break  # Use first successful broker
+            else:
+                console.print("[yellow]no equity data[/yellow]")
+        except Exception as e:
+            console.print(f"[yellow]failed: {e}[/yellow]")
+
+    return trader_profile
+
+
+def _fetch_broker_summary(
+    broker_name: str, env: dict[str, str],
+) -> dict | None:
+    """Instantiate a broker plugin and fetch account summary."""
+    # Inject env vars for the broker
+    old_env = {}
+    cfg = _BROKER_CONFIGS.get(broker_name, {})
+    for key in cfg.get("env_keys", {}):
+        old_env[key] = os.environ.get(key)
+        if env.get(key):
+            os.environ[key] = env[key]
+    # Also set Alpaca-specific env mapping
+    if broker_name == "alpaca":
+        for src, dst in cfg.get("test_env_map", {}).items():
+            old_env[dst] = os.environ.get(dst)
+            os.environ[dst] = env.get(src, "")
+        old_env["ALPACA_BASE_URL"] = os.environ.get("ALPACA_BASE_URL")
+        if env.get("ALPACA_BASE_URL"):
+            os.environ["ALPACA_BASE_URL"] = env["ALPACA_BASE_URL"]
+
+    try:
+        from pro_trader.models.position import AccountSummary
+        plugin = _get_broker_plugin_instance(broker_name)
+        if not plugin:
+            return None
+        plugin.startup()
+        if not plugin.enabled:
+            return None
+        summary = plugin.get_account_summary()
+        if not isinstance(summary, AccountSummary):
+            return None
+        return {
+            "equity": summary.equity,
+            "cash": summary.cash,
+            "buying_power": summary.buying_power,
+            "today_pnl": summary.today_pnl,
+            "pattern_day_trader": summary.pattern_day_trader,
+            "open_positions": summary.open_positions,
+            "position_symbols": summary.position_symbols,
+        }
+    except Exception:
+        return None
+    finally:
+        # Restore original env
+        for key, val in old_env.items():
+            if val is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = val
+
+
+def _get_broker_plugin_instance(broker_name: str):
+    """Import and instantiate a broker plugin by name."""
+    broker_modules = {
+        "alpaca": (
+            "pro_trader.plugins.brokers.alpaca_broker",
+            "AlpacaBrokerPlugin",
+        ),
+        "tastytrade": (
+            "pro_trader.plugins.brokers.tastytrade_broker",
+            "TastytradeBrokerPlugin",
+        ),
+        "ibkr": (
+            "pro_trader.plugins.brokers.ibkr_broker",
+            "IBKRBrokerPlugin",
+        ),
+        "snaptrade": (
+            "pro_trader.plugins.brokers.snaptrade_broker",
+            "SnapTradeBrokerPlugin",
+        ),
+        "tradier": (
+            "pro_trader.plugins.brokers.tradier_broker",
+            "TradierBrokerPlugin",
+        ),
+        "schwab": (
+            "pro_trader.plugins.brokers.schwab_broker",
+            "SchwabBrokerPlugin",
+        ),
+        "coinbase": (
+            "pro_trader.plugins.brokers.coinbase_broker",
+            "CoinbaseBrokerPlugin",
+        ),
+    }
+    entry = broker_modules.get(broker_name)
+    if not entry:
+        return None
+    import importlib
+    mod = importlib.import_module(entry[0])
+    cls = getattr(mod, entry[1])
+    return cls()
 
 
 def _step_llm(env: dict[str, str]) -> dict[str, str]:
@@ -811,8 +1123,12 @@ def run_wizard() -> None:
     # Step 2: Trader Profile
     trader_profile = _step_trader_profile(user_cfg)
 
-    # Step 3: Broker
-    env = _step_broker(env)
+    # Step 3: Broker (multi-broker selection)
+    env, selected_brokers, primary_broker = _step_broker(env)
+
+    # Step 3b: Sync profile from live broker data
+    if selected_brokers:
+        trader_profile = _try_broker_sync(env, selected_brokers, trader_profile)
 
     # Step 4: LLM
     env = _step_llm(env)
@@ -837,7 +1153,12 @@ def run_wizard() -> None:
     summary.add_row("Risk tolerance", trader_profile.get("risk_tolerance", "moderate"))
     if trader_profile.get("recovery_mode"):
         summary.add_row("Recovery mode", f"recover ${trader_profile.get('losses_to_recover', 0):,.0f}")
-    summary.add_row("Broker", "paper" if "paper" in alpaca_url else "LIVE")
+    broker_display = primary_broker or "none"
+    if primary_broker == "alpaca":
+        broker_display += " (paper)" if "paper" in alpaca_url else " (LIVE)"
+    if len(selected_brokers) > 1:
+        broker_display += f" + {len(selected_brokers) - 1} more"
+    summary.add_row("Broker", broker_display)
     summary.add_row("LLM provider", llm_provider)
     summary.add_row("OpenClaw", "available" if openclaw_info.get("openclaw_available") else "not installed")
     summary.add_row("Plugins toggled", str(len(plugin_cfg)) if plugin_cfg else "none")
@@ -857,6 +1178,10 @@ def run_wizard() -> None:
     user_cfg["llm_provider"] = llm_provider
     user_cfg["trader_profile"] = trader_profile
     user_cfg["account_value"] = trader_profile.get("account_size", 500)
+    if primary_broker:
+        user_cfg["primary_broker"] = primary_broker
+    if selected_brokers:
+        user_cfg.setdefault("plugins", {})["broker"] = selected_brokers
     if plugin_cfg:
         user_cfg.setdefault("plugin_config", {}).update(plugin_cfg)
     _save_user_config(user_cfg)

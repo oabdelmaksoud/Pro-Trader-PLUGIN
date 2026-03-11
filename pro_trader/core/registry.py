@@ -180,6 +180,13 @@ class PluginRegistry:
             "pro_trader.plugins.monitors.news_monitor_plugin",
             "pro_trader.plugins.monitors.fomc_monitor_plugin",
             "pro_trader.plugins.monitors.futures_monitor_plugin",
+            "pro_trader.plugins.brokers.alpaca_broker",
+            "pro_trader.plugins.brokers.tastytrade_broker",
+            "pro_trader.plugins.brokers.ibkr_broker",
+            "pro_trader.plugins.brokers.snaptrade_broker",
+            "pro_trader.plugins.brokers.tradier_broker",
+            "pro_trader.plugins.brokers.schwab_broker",
+            "pro_trader.plugins.brokers.coinbase_broker",
         ]
 
         for module_path in builtin_modules:
