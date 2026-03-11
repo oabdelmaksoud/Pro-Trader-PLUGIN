@@ -10,8 +10,10 @@ Guides users through:
   6. Write .env + config files
 
 Usage:
-    pro-trader setup          # Full interactive wizard
-    pro-trader setup --check  # Verify existing setup without changes
+    pro-trader setup              # Full interactive wizard
+    pro-trader setup --check      # Verify existing setup without changes
+    pro-trader setup --update     # Update existing installation
+    pro-trader setup --uninstall  # Remove Pro-Trader config and package
 """
 
 from __future__ import annotations
@@ -479,9 +481,271 @@ def run_wizard() -> None:
     console.print(Panel(
         "[bold green]Setup complete![/bold green]\n\n"
         "Next steps:\n"
-        "  pro-trader health       — verify all systems\n"
-        "  pro-trader plugin list  — see active plugins\n"
-        "  pro-trader analyze NVDA — test the pipeline\n"
-        "  pro-trader setup --check — re-check anytime",
+        "  pro-trader health         — verify all systems\n"
+        "  pro-trader plugin list    — see active plugins\n"
+        "  pro-trader analyze NVDA   — test the pipeline\n"
+        "  pro-trader setup --check  — re-check anytime\n"
+        "  pro-trader setup --update — update Pro-Trader",
         style="green",
     ))
+
+
+# ── Update mode ──────────────────────────────────────────────────────────────
+
+def run_update() -> None:
+    """Update Pro-Trader installation and re-validate config."""
+    console.print(Panel("[bold]Pro-Trader Update[/bold]", style="cyan"))
+
+    # 1. Show current version
+    current_version = _get_installed_version()
+    if current_version:
+        console.print(f"  Current version: [bold]{current_version}[/bold]")
+    else:
+        console.print("  [yellow]Pro-Trader not installed as package[/yellow]")
+
+    # 2. Check for source vs pip install
+    is_editable = _is_editable_install()
+
+    if is_editable:
+        console.print("  Install type:    [cyan]editable (dev)[/cyan]\n")
+        console.print("  Pulling latest source...")
+        ok, out = _test_command(["git", "-C", str(_REPO), "pull", "--ff-only"], timeout=30)
+        if ok:
+            console.print(f"  [green]Git pull OK[/green]: {out.splitlines()[-1] if out else 'up to date'}")
+        else:
+            console.print(f"  [yellow]Git pull failed[/yellow]: {out[:120]}")
+            console.print("  [dim]You may need to commit or stash local changes first.[/dim]")
+
+        # Re-install in editable mode to pick up new entry points
+        console.print("  Re-installing in editable mode...")
+        ok, out = _test_command(
+            [sys.executable, "-m", "pip", "install", "-e", f"{_REPO}[all]", "-q"],
+            timeout=120,
+        )
+        if ok:
+            console.print("  [green]Reinstall OK[/green]")
+        else:
+            console.print(f"  [yellow]Reinstall issue[/yellow]: {out[:120]}")
+    else:
+        console.print("  Install type:    [cyan]pip package[/cyan]\n")
+        console.print("  Upgrading pro-trader...")
+        ok, out = _test_command(
+            [sys.executable, "-m", "pip", "install", "--upgrade", "pro-trader[all]", "-q"],
+            timeout=120,
+        )
+        if ok:
+            console.print("  [green]Upgrade OK[/green]")
+        else:
+            console.print(f"  [yellow]Upgrade issue[/yellow]: {out[:120]}")
+
+    # 3. Show new version
+    new_version = _get_installed_version()
+    if new_version and new_version != current_version:
+        console.print(f"\n  Updated: {current_version} → [bold green]{new_version}[/bold green]")
+    elif new_version:
+        console.print(f"\n  Already at latest: [bold]{new_version}[/bold]")
+
+    # 4. Re-validate OpenClaw compatibility
+    console.print("\n  Checking OpenClaw compatibility...")
+    if shutil.which("openclaw"):
+        ok, ver = _test_command(["openclaw", "--version"])
+        if ok:
+            console.print(f"  [green]OpenClaw OK[/green]: {ver}")
+        else:
+            console.print(f"  [yellow]OpenClaw version check failed[/yellow]")
+    else:
+        console.print("  [dim]OpenClaw not installed (Discord disabled)[/dim]")
+
+    # 5. Re-validate plugins load
+    console.print("  Checking plugins...")
+    try:
+        from pro_trader import ProTrader
+        trader = ProTrader()
+        h = trader.health()
+        total = sum(len(v) for v in h.values())
+        ok_count = sum(
+            1 for plugins in h.values()
+            for info in plugins.values()
+            if info.get("status") == "ok"
+        )
+        console.print(f"  [green]Plugins OK[/green]: {ok_count}/{total} healthy")
+    except Exception as e:
+        console.print(f"  [yellow]Plugin check failed[/yellow]: {e}")
+
+    # 6. Validate existing config
+    env = _load_env()
+    issues: list[str] = []
+    if not env:
+        issues.append("No .env file — run: pro-trader setup")
+    else:
+        for key_name in ("ALPACA_API_KEY", "ANTHROPIC_API_KEY"):
+            val = env.get(key_name, "")
+            if not val or _is_placeholder(val):
+                issues.append(f"{key_name} not configured")
+
+    if issues:
+        console.print("\n  [yellow]Config issues:[/yellow]")
+        for issue in issues:
+            console.print(f"    - {issue}")
+        console.print("  [dim]Run: pro-trader setup  to fix[/dim]")
+    else:
+        console.print("  [green]Config OK[/green]")
+
+    console.print(Panel("[bold green]Update complete![/bold green]", style="green"))
+
+
+# ── Uninstall mode ───────────────────────────────────────────────────────────
+
+def run_uninstall() -> None:
+    """Remove Pro-Trader configuration, data, and optionally the package."""
+    console.print(Panel(
+        "[bold red]Pro-Trader Uninstall[/bold red]\n"
+        "This will remove Pro-Trader configuration files and data.",
+        style="red",
+    ))
+
+    removed: list[str] = []
+    skipped: list[str] = []
+
+    # 1. Inventory what exists
+    artifacts: list[tuple[str, Path, str]] = [
+        ("User config", _USER_CONFIG, "~/.pro_trader/config.json"),
+        ("User config dir", _USER_CONFIG_DIR, "~/.pro_trader/"),
+        ("Environment file", _ENV_FILE, ".env"),
+    ]
+
+    # Check for logs/results dirs
+    logs_dir = _REPO / "logs"
+    results_dir = _REPO / "results"
+    if logs_dir.exists():
+        artifacts.append(("Logs directory", logs_dir, "logs/"))
+    if results_dir.exists():
+        artifacts.append(("Results directory", results_dir, "results/"))
+
+    console.print("\n  [bold]Files and directories to remove:[/bold]\n")
+    table = Table(show_header=True, show_lines=False)
+    table.add_column("Item", style="bold")
+    table.add_column("Path", style="dim")
+    table.add_column("Exists")
+
+    for label, path, display in artifacts:
+        exists = path.exists()
+        status = "[green]yes[/green]" if exists else "[dim]no[/dim]"
+        table.add_row(label, display, status)
+    console.print(table)
+
+    if not Confirm.ask("\n  Proceed with uninstall?", default=False):
+        console.print("[yellow]Cancelled.[/yellow]")
+        return
+
+    # 2. Remove config files
+    if _USER_CONFIG.exists():
+        if Confirm.ask("  Delete user config (~/.pro_trader/config.json)?", default=True):
+            _USER_CONFIG.unlink()
+            removed.append("~/.pro_trader/config.json")
+        else:
+            skipped.append("~/.pro_trader/config.json")
+
+    # Remove user config dir if empty
+    if _USER_CONFIG_DIR.exists():
+        try:
+            _USER_CONFIG_DIR.rmdir()  # Only removes if empty
+            removed.append("~/.pro_trader/")
+        except OSError:
+            skipped.append("~/.pro_trader/ (not empty)")
+
+    # 3. Remove .env (careful — might have other project keys)
+    if _ENV_FILE.exists():
+        if Confirm.ask("  Delete .env file? (contains API keys for this project)", default=False):
+            _ENV_FILE.unlink()
+            removed.append(".env")
+        else:
+            skipped.append(".env (kept)")
+
+    # 4. Remove logs and results
+    if logs_dir.exists():
+        if Confirm.ask("  Delete logs directory?", default=True):
+            shutil.rmtree(logs_dir)
+            removed.append("logs/")
+        else:
+            skipped.append("logs/")
+
+    if results_dir.exists():
+        if Confirm.ask("  Delete results directory?", default=False):
+            shutil.rmtree(results_dir)
+            removed.append("results/")
+        else:
+            skipped.append("results/")
+
+    # 5. Uninstall pip package
+    current_version = _get_installed_version()
+    if current_version:
+        console.print(f"\n  Pro-Trader package installed: [bold]{current_version}[/bold]")
+        if Confirm.ask("  Uninstall pro-trader pip package?", default=False):
+            ok, out = _test_command(
+                [sys.executable, "-m", "pip", "uninstall", "pro-trader", "-y"],
+                timeout=30,
+            )
+            if ok:
+                removed.append(f"pro-trader package ({current_version})")
+                console.print("  [green]Package uninstalled[/green]")
+            else:
+                console.print(f"  [red]Uninstall failed[/red]: {out[:120]}")
+                skipped.append("pro-trader package")
+        else:
+            skipped.append("pro-trader package (kept)")
+
+    # 6. Summary
+    console.print("\n[bold]Uninstall Summary[/bold]\n")
+
+    if removed:
+        console.print("  [red]Removed:[/red]")
+        for item in removed:
+            console.print(f"    - {item}")
+
+    if skipped:
+        console.print("  [yellow]Kept:[/yellow]")
+        for item in skipped:
+            console.print(f"    - {item}")
+
+    if not removed:
+        console.print("  [dim]Nothing was removed.[/dim]")
+    else:
+        console.print(Panel(
+            "[bold]Pro-Trader has been uninstalled.[/bold]\n\n"
+            "To reinstall:\n"
+            '  pip install -e ".[all]"\n'
+            "  pro-trader setup",
+            style="yellow",
+        ))
+
+
+# ── Internal helpers ─────────────────────────────────────────────────────────
+
+def _get_installed_version() -> str | None:
+    """Get the installed pro-trader package version."""
+    try:
+        from importlib.metadata import version
+        return version("pro-trader")
+    except Exception:
+        return None
+
+
+def _is_editable_install() -> bool:
+    """Check if pro-trader is installed in editable/dev mode."""
+    try:
+        from importlib.metadata import distribution
+        dist = distribution("pro-trader")
+        # Editable installs have a direct_url.json with "editable" or the path matches repo
+        direct_url = dist.read_text("direct_url.json")
+        if direct_url and "editable" in direct_url:
+            return True
+    except Exception:
+        pass
+    # Fallback: check if the package location is the repo itself
+    try:
+        import pro_trader
+        pkg_path = Path(pro_trader.__file__).resolve().parent.parent
+        return pkg_path == _REPO
+    except Exception:
+        return False
