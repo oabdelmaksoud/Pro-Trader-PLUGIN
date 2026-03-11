@@ -57,6 +57,7 @@ _state: dict = {
     "market_open": False,
     "stream_running": False,
     "plugins": {},
+    "brokers": [],
 }
 
 _sse_clients: list = []
@@ -140,7 +141,18 @@ def _get_portfolio() -> dict:
         brokers = _trader.plugins.get_plugins("broker")
         if not brokers:
             return {}
+        # Use primary broker if configured
         broker = brokers[0]
+        try:
+            from pro_trader.core.config import load_config
+            cfg = load_config()
+            primary = cfg.get("primary_broker", "")
+            for bp in brokers:
+                if bp.name == primary:
+                    broker = bp
+                    break
+        except Exception:
+            pass
         portfolio = broker.get_portfolio()
         positions = []
         live = _load_live_prices()
@@ -285,6 +297,61 @@ def _get_plugin_health() -> dict:
         return {}
     try:
         return _trader.health()
+    except Exception:
+        return {}
+
+
+def _get_brokers() -> list[dict]:
+    """Get all broker plugins and their account summaries."""
+    if not _trader:
+        return []
+    brokers = []
+    try:
+        broker_plugins = _trader.plugins.get_plugins("broker")
+        for bp in broker_plugins:
+            info = {
+                "name": bp.name,
+                "version": getattr(bp, "version", ""),
+                "description": getattr(bp, "description", ""),
+                "supported_assets": getattr(bp, "supported_assets", []),
+                "enabled": getattr(bp, "enabled", True),
+            }
+            try:
+                summary = bp.get_account_summary()
+                info["account"] = {
+                    "account_id": summary.account_id,
+                    "status": summary.status,
+                    "equity": summary.equity,
+                    "cash": summary.cash,
+                    "buying_power": summary.buying_power,
+                    "today_pnl": summary.today_pnl,
+                    "open_positions": summary.open_positions,
+                    "currency": summary.currency,
+                }
+            except Exception:
+                info["account"] = None
+            brokers.append(info)
+    except Exception:
+        pass
+    return brokers
+
+
+def _get_config() -> dict:
+    """Get trader configuration."""
+    try:
+        from pro_trader.core.config import load_config
+        cfg = load_config()
+        # Return safe subset (no secrets)
+        return {
+            "primary_broker": cfg.get("primary_broker", ""),
+            "llm_provider": cfg.get("llm_provider", ""),
+            "score_threshold": cfg.get("score_threshold", 7.0),
+            "confidence_threshold": cfg.get("confidence_threshold", 7),
+            "account_value": cfg.get("account_value", 0),
+            "max_position_pct": cfg.get("max_position_pct", 0),
+            "watchlist": cfg.get("watchlist", []),
+            "trader_profile": cfg.get("trader_profile", {}),
+        }
     except Exception:
         return {}
 
@@ -441,6 +508,16 @@ def _bg_refresh():
                 except Exception:
                     pass
 
+                # Broker data
+                try:
+                    brokers_data = _get_brokers()
+                    if brokers_data:
+                        with _state_lock:
+                            _state["brokers"] = brokers_data
+                        _broadcast("brokers", {"brokers": brokers_data})
+                except Exception:
+                    pass
+
             # Heartbeat
             with _state_lock:
                 stream_on = _state["stream_running"]
@@ -563,6 +640,18 @@ class DashboardHandler(BaseHTTPRequestHandler):
         elif path == "/api/plugins":
             try:
                 self._send_json(_get_plugin_health())
+            except Exception as e:
+                self._send_json({"error": str(e)}, 500)
+
+        elif path == "/api/brokers":
+            try:
+                self._send_json({"brokers": _get_brokers()})
+            except Exception as e:
+                self._send_json({"error": str(e)}, 500)
+
+        elif path == "/api/config":
+            try:
+                self._send_json(_get_config())
             except Exception as e:
                 self._send_json({"error": str(e)}, 500)
 
