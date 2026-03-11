@@ -9,6 +9,10 @@ Usage:
     pro-trader plugin enable polygon
     pro-trader monitor start
     pro-trader config show
+    pro-trader setup
+    pro-trader setup --check
+    pro-trader setup --update
+    pro-trader setup --uninstall
     pro-trader health
 """
 
@@ -237,6 +241,30 @@ def dashboard(
 
     trader = ProTrader()
     start(port=port, open_browser=open_browser, trader=trader)
+
+
+# ── Setup Wizard ────────────────────────────────────────────────────────────
+
+@app.command()
+def setup(
+    check: bool = typer.Option(False, "--check", help="Verify existing setup without changes"),
+    update: bool = typer.Option(False, "--update", help="Update existing installation"),
+    uninstall: bool = typer.Option(False, "--uninstall", help="Remove Pro-Trader config and package"),
+):
+    """Interactive setup wizard for first-time configuration."""
+    from pro_trader.cli.setup_wizard import run_wizard, run_check, run_update, run_uninstall
+
+    try:
+        if uninstall:
+            run_uninstall()
+        elif update:
+            run_update()
+        elif check:
+            run_check()
+        else:
+            run_wizard()
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Cancelled.[/yellow]")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────

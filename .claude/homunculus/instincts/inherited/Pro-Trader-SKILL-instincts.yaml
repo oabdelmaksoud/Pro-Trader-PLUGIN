@@ -1,0 +1,647 @@
+# Instincts generated from https://github.com/oabdelmaksoud/Pro-Trader-SKILL
+# Generated: 2026-03-10T11:04:50.099Z
+# Version: 2.0
+
+---
+id: Pro-Trader-SKILL-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader SKILL Commit Length
+
+## Action
+
+Write moderate-length commit messages (~50 characters)
+
+## Evidence
+
+- Average commit message length: 53 chars
+- Based on 165 commits
+
+---
+id: Pro-Trader-SKILL-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader SKILL Naming Files
+
+## Action
+
+Use snake_case naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: snake_case
+
+---
+id: Pro-Trader-SKILL-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader SKILL Export Style
+
+## Action
+
+Prefer mixed exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: mixed
+
+---
+id: Pro-Trader-SKILL-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader SKILL Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: Pro-Trader-SKILL-workflow-feature-development
+trigger: "when implementing a new feature"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader SKILL Workflow Feature Development
+
+## Action
+
+Follow the feature-development workflow:
+1. Add feature implementation
+2. Add tests for feature
+3. Update documentation
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~20x per month
+- Files: **/*.test.*
+
+---
+id: Pro-Trader-SKILL-workflow-add-new-plugin
+trigger: "when doing add new plugin"
+confidence: 0.65
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader SKILL Workflow Add New Plugin
+
+## Action
+
+Follow the add-new-plugin workflow:
+1. Create plugin file in appropriate pro_trader/plugins/ subdirectory
+2. Update pro_trader/core/registry.py to register the plugin
+3. Update pyproject.toml with entry points or dependencies
+4. Create corresponding test file in tests/
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~3x per month
+- Files: pro_trader/plugins/*/plugin_name.py, pro_trader/core/registry.py, pyproject.toml
+
+---
+id: Pro-Trader-SKILL-workflow-add-intelligence-module
+trigger: "when doing add intelligence module"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader SKILL Workflow Add Intelligence Module
+
+## Action
+
+Follow the add-intelligence-module workflow:
+1. Create new module in scripts/ or tradingagents/dataflows/
+2. Wire into get_market_data.py for score bonuses
+3. Wire into full_pipeline_scan.py for agent consumption
+4. Create corresponding cache/state file in logs/
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~8x per month
+- Files: scripts/module_name.py, scripts/get_market_data.py, scripts/full_pipeline_scan.py
+
+---
+id: Pro-Trader-SKILL-workflow-fix-hardcoded-paths
+trigger: "when doing fix hardcoded paths"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader SKILL Workflow Fix Hardcoded Paths
+
+## Action
+
+Follow the fix-hardcoded-paths workflow:
+1. Add REPO_ROOT = Path(__file__).resolve().parent.parent
+2. Replace hardcoded paths with relative paths using REPO_ROOT
+3. Update sys.path.insert() calls to use dynamic paths
+4. Update file loading to use relative paths
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: scripts/*.py, tradingagents/dataflows/*.py
+
+---
+id: Pro-Trader-SKILL-workflow-update-openclaw-compatibility
+trigger: "when doing update openclaw compatibility"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader SKILL Workflow Update Openclaw Compatibility
+
+## Action
+
+Follow the update-openclaw-compatibility workflow:
+1. Update version references in Dockerfile
+2. Update pro_trader/services/openclaw.py for new API changes
+3. Update Discord notifier plugins for compatibility
+4. Update documentation with new version compatibility notes
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: Dockerfile, pro_trader/services/openclaw.py, pro_trader/plugins/notifiers/discord_notifier.py
+
+---
+id: Pro-Trader-SKILL-workflow-wire-data-into-pipeline
+trigger: "when doing wire data into pipeline"
+confidence: 0.7
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader SKILL Workflow Wire Data Into Pipeline
+
+## Action
+
+Follow the wire-data-into-pipeline workflow:
+1. Modify get_market_data.py to include new data in scoring
+2. Add score bonuses/penalties based on data signals
+3. Wire data into agent prompts in full_pipeline_scan.py
+4. Create helper functions for data loading and context building
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~4x per month
+- Files: scripts/get_market_data.py, scripts/full_pipeline_scan.py
+
+---
+id: Pro-Trader-SKILL-workflow-add-monitor-script
+trigger: "when doing add monitor script"
+confidence: 0.8
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader SKILL Workflow Add Monitor Script
+
+## Action
+
+Follow the add-monitor-script workflow:
+1. Create monitoring script in scripts/ directory
+2. Implement data fetching and alert logic
+3. Add Discord posting via openclaw
+4. Create state/cache file in logs/ for persistence
+5. Add cron job configuration
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~6x per month
+- Files: scripts/monitor_name.py, logs/monitor_cache.json
+
+---
+id: Pro-Trader-SKILL-workflow-enhance-dashboard
+trigger: "when doing enhance dashboard"
+confidence: 0.7
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader SKILL Workflow Enhance Dashboard
+
+## Action
+
+Follow the enhance-dashboard workflow:
+1. Add new API endpoints in dashboard/server.py
+2. Update dashboard/index.html with new UI components
+3. Add real-time data streaming if needed
+4. Update chart or data visualization components
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~4x per month
+- Files: dashboard/server.py, dashboard/index.html
+
+---
+id: Pro-Trader-SKILL-workflow-comprehensive-readme-update
+trigger: "when doing comprehensive readme update"
+confidence: 0.65
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader SKILL Workflow Comprehensive Readme Update
+
+## Action
+
+Follow the comprehensive-readme-update workflow:
+1. Add or update Mermaid/ASCII diagrams
+2. Document new architecture patterns
+3. Update API and usage examples
+4. Add new sections for major features
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~3x per month
+- Files: README.md
+
+---
+id: pro-trader-snake-case-files
+trigger: "When creating new files in pro_trader"
+confidence: 0.85
+domain: code-style
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader Snake Case Files
+
+## Action
+
+Use snake_case naming convention for file names
+
+## Evidence
+
+- Files like discord_signal_card.py
+- options_chain.py
+- get_market_data.py
+
+---
+id: pro-trader-camel-case-functions
+trigger: "When defining functions in Python modules"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader Camel Case Functions
+
+## Action
+
+Use camelCase naming convention for function names
+
+## Evidence
+
+- Pattern detected in codeStyle.namingConventions.functions
+
+---
+id: pro-trader-pascal-case-classes
+trigger: "When defining classes in Python modules"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader Pascal Case Classes
+
+## Action
+
+Use PascalCase naming convention for class names
+
+## Evidence
+
+- Pattern detected in codeStyle.namingConventions.classes
+
+---
+id: pro-trader-screaming-snake-constants
+trigger: "When defining constants in Python modules"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader Screaming Snake Constants
+
+## Action
+
+Use SCREAMING_SNAKE_CASE naming convention for constants
+
+## Evidence
+
+- Pattern detected in codeStyle.namingConventions.constants
+
+---
+id: pro-trader-test-with-feature
+trigger: "When implementing a new feature"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader Test With Feature
+
+## Action
+
+Create corresponding test file with comprehensive test coverage
+
+## Evidence
+
+- Commit: test: add realtime plugin tests (12 tests, all passing)
+- Workflow shows tests created alongside features
+
+---
+id: pro-trader-typed-commit-prefix
+trigger: "When making commits"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader Typed Commit Prefix
+
+## Action
+
+Use typed commit prefixes: feat, fix, docs, chore, test, refactor
+
+## Evidence
+
+- All commit examples use typed prefixes
+- Average length 53 chars with descriptive messages
+
+---
+id: pro-trader-descriptive-commit-messages
+trigger: "When writing commit messages"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader Descriptive Commit Messages
+
+## Action
+
+Write descriptive messages around 53 characters explaining what was done
+
+## Evidence
+
+- Average commit length is 53 chars
+- Examples show detailed descriptions like 'add realtime data plugin (Alpaca/Finnhub/Polygon/Webull before yfinance)'
+
+---
+id: pro-trader-plugin-registration
+trigger: "When adding a new plugin to pro_trader"
+confidence: 0.92
+domain: workflow
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader Plugin Registration
+
+## Action
+
+Create plugin file, update registry.py, update pyproject.toml, create test file
+
+## Evidence
+
+- add-new-plugin workflow with 3x/month frequency
+- Clear file pattern in pro_trader/plugins/*/plugin_name.py
+
+---
+id: pro-trader-intelligence-wiring
+trigger: "When adding new intelligence gathering modules"
+confidence: 0.89
+domain: workflow
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader Intelligence Wiring
+
+## Action
+
+Wire into get_market_data.py for scoring and full_pipeline_scan.py for agents
+
+## Evidence
+
+- add-intelligence-module workflow with 8x/month frequency
+- Pattern of wiring data into pipeline scoring
+
+---
+id: pro-trader-repo-root-pattern
+trigger: "When fixing hardcoded paths"
+confidence: 0.78
+domain: workflow
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader Repo Root Pattern
+
+## Action
+
+Add REPO_ROOT = Path(__file__).resolve().parent.parent and use relative paths
+
+## Evidence
+
+- fix-hardcoded-paths workflow
+- Pattern of making code portable across machines
+
+---
+id: pro-trader-openclaw-version-update
+trigger: "When updating OpenClaw compatibility"
+confidence: 0.85
+domain: workflow
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader Openclaw Version Update
+
+## Action
+
+Update Dockerfile, services/openclaw.py, Discord notifier, and README.md
+
+## Evidence
+
+- Commit: fix: update openclaw compatibility to v2026.3.8
+- update-openclaw-compatibility workflow
+
+---
+id: pro-trader-data-pipeline-scoring
+trigger: "When integrating new data sources"
+confidence: 0.87
+domain: workflow
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader Data Pipeline Scoring
+
+## Action
+
+Modify get_market_data.py for scoring bonuses and wire into full_pipeline_scan.py
+
+## Evidence
+
+- wire-data-into-pipeline workflow
+- Pattern of score bonuses/penalties in market data
+
+---
+id: pro-trader-monitor-with-discord
+trigger: "When adding market monitoring capabilities"
+confidence: 0.83
+domain: workflow
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader Monitor With Discord
+
+## Action
+
+Create script with Discord alerting via openclaw and state persistence in logs/
+
+## Evidence
+
+- add-monitor-script workflow with 6x/month frequency
+- Pattern of Discord integration
+
+---
+id: pro-trader-dashboard-api-endpoints
+trigger: "When enhancing the trading dashboard"
+confidence: 0.81
+domain: workflow
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader Dashboard Api Endpoints
+
+## Action
+
+Add API endpoints in server.py and update HTML with new UI components
+
+## Evidence
+
+- enhance-dashboard workflow
+- Files: dashboard/server.py, dashboard/index.html
+
+---
+id: pro-trader-readme-with-diagrams
+trigger: "When major system changes require documentation"
+confidence: 0.79
+domain: workflow
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader Readme With Diagrams
+
+## Action
+
+Add Mermaid/ASCII diagrams and document architecture patterns in README.md
+
+## Evidence
+
+- comprehensive-readme-update workflow
+- Commit: docs: rewrite README for plugin architecture + openclaw v2026.3.8
+
+---
+id: pro-trader-logs-for-persistence
+trigger: "When creating monitoring or caching functionality"
+confidence: 0.82
+domain: architecture
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader Logs For Persistence
+
+## Action
+
+Create corresponding cache/state files in logs/ directory
+
+## Evidence
+
+- logs/ folder in common folders
+- Pattern of logs/module_cache.json in workflows
+
+---
+id: pro-trader-scripts-directory-pattern
+trigger: "When adding standalone functionality"
+confidence: 0.88
+domain: architecture
+source: repo-analysis
+source_repo: oabdelmaksoud/Pro-Trader-SKILL
+---
+
+# Pro Trader Scripts Directory Pattern
+
+## Action
+
+Create new modules in scripts/ directory for executable functionality
+
+## Evidence
+
+- scripts folder in architecture
+- Multiple workflows reference scripts/ directory
+

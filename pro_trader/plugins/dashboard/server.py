@@ -25,7 +25,7 @@ import sys
 import threading
 import time
 from datetime import datetime
-from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
@@ -361,6 +361,7 @@ def _bg_refresh():
     last_slow = 0
     last_signal_ts = None
 
+    stream_on = False
     while True:
         try:
             now = time.time()
@@ -381,16 +382,23 @@ def _bg_refresh():
                         pos["unrealized_pl"] = round((cur - entry) * qty, 2)
                         pos["unrealized_plpc"] = round((cur - entry) / entry * 100, 2) if entry else 0
 
-                _state["today_pnl"] = sum(
+                # Update today_pnl from unrealized only if broker hasn't
+                # set it yet (broker value includes realized P&L too)
+                unrealized_total = sum(
                     float(p.get("unrealized_pl", 0)) for p in _state["positions"]
                 )
+                if not _state.get("_broker_pnl_set"):
+                    _state["today_pnl"] = unrealized_total
+
+                # Snapshot for broadcast (inside lock)
+                pos_snapshot = {
+                    "positions": list(_state["positions"]),
+                    "today_pnl": _state["today_pnl"],
+                    "portfolio_value": _state["portfolio_value"],
+                }
 
             # Push positions tick
-            _broadcast("positions", {
-                "positions": _state["positions"],
-                "today_pnl": _state["today_pnl"],
-                "portfolio_value": _state["portfolio_value"],
-            })
+            _broadcast("positions", pos_snapshot)
 
             # Check for new signals
             sigs = _load_jsonl(SIGNALS_LOG, days=1, limit=1)
@@ -419,6 +427,7 @@ def _bg_refresh():
                                 "today_pnl": portfolio.get("today_pnl", 0),
                                 "heat": portfolio.get("heat", 0),
                                 "last_updated": now,
+                                "_broker_pnl_set": True,
                             })
                         _broadcast("account", portfolio)
                 except Exception:
@@ -433,12 +442,14 @@ def _bg_refresh():
                     pass
 
             # Heartbeat
-            _broadcast("heartbeat", {"ts": now, "stream": _state["stream_running"]})
+            with _state_lock:
+                stream_on = _state["stream_running"]
+            _broadcast("heartbeat", {"ts": now, "stream": stream_on})
 
         except Exception:
             pass
 
-        tick = 1.0 if _state.get("stream_running") else 3.0
+        tick = 1.0 if stream_on else 3.0
         time.sleep(tick)
 
 
@@ -570,13 +581,16 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": str(e)}, 500)
 
         elif path == "/api/status":
-            self._send_json({
-                "server": "ok",
-                "stream_running": _state["stream_running"],
-                "sse_clients": len(_sse_clients),
-                "last_updated": _state["last_updated"],
-                "plugin_count": len(_state.get("plugins", {})),
-            })
+            with _state_lock:
+                status = {
+                    "server": "ok",
+                    "stream_running": _state["stream_running"],
+                    "last_updated": _state["last_updated"],
+                    "plugin_count": len(_state.get("plugins", {})),
+                }
+            with _sse_lock:
+                status["sse_clients"] = len(_sse_clients)
+            self._send_json(status)
 
         else:
             self.send_response(404)
