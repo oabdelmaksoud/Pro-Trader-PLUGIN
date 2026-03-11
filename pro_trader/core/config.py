@@ -39,6 +39,35 @@ DEFAULT_CONFIG = {
     "conviction_min": 7,
     "risk_per_trade_pct": 0.02,
 
+    # ── Trader Profile ─────────────────────────────────────────────
+    # Collected via setup wizard; fed to AI analysts for personalized decisions
+    "trader_profile": {
+        # Account & Capital
+        "account_size": 500,            # Current total account value ($)
+        "peak_account_value": None,     # Highest account value achieved ($)
+        "losses_to_recover": 0,         # Dollar amount of losses to recover
+        "recovery_mode": False,         # Whether actively recovering losses
+
+        # Risk Tolerance
+        "risk_tolerance": "moderate",   # conservative | moderate | aggressive
+        "max_loss_per_trade_pct": 2.0,  # Max % of account risked per trade
+        "max_daily_loss_pct": 3.0,      # Stop trading after this daily loss %
+        "max_drawdown_pct": 5.0,        # Full halt at this portfolio drawdown %
+
+        # Trading Style
+        "trading_style": "swing",       # day_trade | swing | position
+        "holding_period": "days",       # hours | days | weeks
+        "preferred_assets": ["equities"],  # equities, futures, crypto, fx
+
+        # Experience & Goals
+        "experience_level": "intermediate",  # beginner | intermediate | advanced
+        "trading_goal": "growth",       # growth | income | recovery | preservation
+
+        # Recovery Plan (populated when recovery_mode=True)
+        "recovery_timeline_weeks": None,   # Desired weeks to recover
+        "recovery_strategy": "moderate",   # conservative_rebuild | moderate | aggressive
+    },
+
     # ── Futures ───────────────────────────────────────────────────────
     "futures": {
         "enabled": True,

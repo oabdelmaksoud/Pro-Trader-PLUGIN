@@ -99,12 +99,61 @@ class CooperScorer(StrategyPlugin):
 
         score = min(10.0, max(0.0, score))
 
+        # ── Profile-driven adjustments ──────────────────────────────
+        profile = (context or {}).get("trader_profile", {})
+        position_pct = 0.15  # default 15% of account
+
+        risk_tolerance = profile.get("risk_tolerance", "moderate")
+        if risk_tolerance == "conservative":
+            # Require higher score for conservative traders
+            if score < 7.5:
+                score -= 0.3
+            position_pct = 0.10
+        elif risk_tolerance == "aggressive":
+            position_pct = 0.20
+
+        # Recovery mode: tighten requirements for high-probability trades
+        if profile.get("recovery_mode"):
+            rec_strategy = profile.get("recovery_strategy", "moderate")
+            if rec_strategy == "conservative_rebuild":
+                if score < 7.5:
+                    score -= 0.5
+                position_pct = min(position_pct, 0.10)
+            elif rec_strategy == "aggressive":
+                position_pct = min(position_pct + 0.05, 0.25)
+
+        # Trading style affects holding period metadata
+        trading_style = profile.get("trading_style", "swing")
+
+        # Experience: beginners get tighter scoring
+        if profile.get("experience_level") == "beginner":
+            if score < 7.5:
+                score -= 0.3
+            position_pct = min(position_pct, 0.10)
+
+        score = min(10.0, max(0.0, score))
+
+        # Position size based on account and risk
+        account_value = (context or {}).get("account_value", 500)
+        position_size = max(1, int(account_value * position_pct / max(data.price, 1)))
+
+        # Stop/target based on profile risk tolerance
+        stop_pct = profile.get("max_loss_per_trade_pct", 2.0) / 100
+        target_map = {"conservative": 0.05, "moderate": 0.08, "aggressive": 0.12}
+        target_pct = target_map.get(risk_tolerance, 0.08)
+
+        stop_loss = round(data.price * (1 - stop_pct), 2) if data.price else None
+        take_profit = round(data.price * (1 + target_pct), 2) if data.price else None
+
         return Signal(
             ticker=data.ticker,
             direction=direction,
             score=round(score, 1),
             confidence=confidence,
             price=data.price,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+            position_size=position_size,
             asset_type=data.asset_type,
             analyst_reports=reports,
             source="cooper_scorer",
@@ -112,5 +161,9 @@ class CooperScorer(StrategyPlugin):
                 "base_score": 5.0,
                 "analyst_scores": analyst_scores,
                 "is_futures": data.asset_type == "futures",
+                "risk_tolerance": risk_tolerance,
+                "trading_style": trading_style,
+                "recovery_mode": profile.get("recovery_mode", False),
+                "position_pct": position_pct,
             },
         )

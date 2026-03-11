@@ -73,8 +73,12 @@ class PluginRegistry:
         if name in self._plugins[category]:
             logger.warning(f"Plugin '{name}' already registered in '{category}' — replacing")
 
-        # Configure with plugin-specific config
+        # Configure with plugin-specific config + inject trader_profile for risk plugins
         plugin_config = self._config.get("plugin_config", {}).get(name, {})
+        if category == "risk" and "trader_profile" not in plugin_config:
+            trader_profile = self._config.get("trader_profile", {})
+            if trader_profile:
+                plugin_config = {**plugin_config, "trader_profile": trader_profile}
         try:
             plugin.configure(plugin_config)
         except Exception as e:

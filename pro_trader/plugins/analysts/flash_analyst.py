@@ -12,6 +12,56 @@ from pro_trader.models.market_data import MarketData
 logger = logging.getLogger(__name__)
 
 
+def _build_profile_block(context: dict | None) -> str:
+    """Build a prompt section from the trader profile so AI personalizes advice."""
+    if not context:
+        return ""
+    profile = context.get("trader_profile", {})
+    if not profile:
+        return ""
+
+    parts = []
+    parts.append("TRADER CONTEXT (personalize your analysis to this trader):")
+
+    acct = profile.get("account_size")
+    if acct:
+        parts.append(f"- Account size: ${acct:,.0f}")
+
+    risk = profile.get("risk_tolerance")
+    if risk:
+        parts.append(f"- Risk tolerance: {risk}")
+
+    style = profile.get("trading_style")
+    period = profile.get("holding_period")
+    if style:
+        parts.append(f"- Trading style: {style} (holding: {period or 'days'})")
+
+    exp = profile.get("experience_level")
+    if exp:
+        parts.append(f"- Experience: {exp}")
+
+    goal = profile.get("trading_goal")
+    if goal:
+        parts.append(f"- Goal: {goal}")
+
+    max_risk = profile.get("max_loss_per_trade_pct")
+    if max_risk:
+        parts.append(f"- Max risk per trade: {max_risk}%")
+
+    if profile.get("recovery_mode"):
+        loss = profile.get("losses_to_recover", 0)
+        strategy = profile.get("recovery_strategy", "moderate")
+        timeline = profile.get("recovery_timeline_weeks")
+        parts.append(f"- RECOVERY MODE: recovering ${loss:,.0f}, strategy={strategy}")
+        if timeline:
+            parts.append(f"- Recovery timeline: {timeline} weeks")
+        parts.append("- Prioritize high-probability setups. Avoid speculation.")
+
+    if len(parts) <= 1:
+        return ""
+    return "\n".join(parts)
+
+
 class FlashAnalyst(AnalystPlugin):
     name = "flash"
     version = "1.0.0"
@@ -32,9 +82,11 @@ class FlashAnalyst(AnalystPlugin):
         contract_name = data.contract_spec.get("name", ticker) if is_futures else ticker
 
         data_summary = json.dumps(data.to_dict(), indent=2, default=str)[:1500]
+        profile_block = _build_profile_block(context)
 
         if is_futures:
             prompt = f"""You are Flash, CooperCorp Technical Analyst — FUTURES MODE.
+{profile_block}
 Analyze {contract_name} ({ticker}) for entry. Market data:
 {data_summary}
 This is a FUTURES CONTRACT. Consider: margin=${data.contract_spec.get('margin', '?')}, tick value=${data.contract_spec.get('tick_value', '?')}.
@@ -43,6 +95,7 @@ Futures trade nearly 24h — note session context (Globex vs RTH).
 End with: TECHNICAL SCORE: X/10"""
         else:
             prompt = f"""You are Flash, CooperCorp Technical Analyst.
+{profile_block}
 Analyze {ticker} for intraday entry. Market data:
 {data_summary}
 Provide: price, entry zone, stop (-2%), target (+6%), R:R ratio, RSI status, SMA trend, volume vs average.

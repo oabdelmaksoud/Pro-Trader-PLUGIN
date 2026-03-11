@@ -3,11 +3,12 @@ Pro-Trader Setup Wizard — interactive first-time configuration.
 
 Guides users through:
   1. OpenClaw connectivity check
-  2. Broker API keys (Alpaca)
-  3. LLM provider selection + key
-  4. Discord channel verification
-  5. Plugin enable/disable
-  6. Write .env + config files
+  2. Trader Profile (account size, risk, goals, recovery)
+  3. Broker API keys (Alpaca)
+  4. LLM provider selection + key
+  5. Discord channel verification
+  6. Plugin enable/disable
+  7. Write .env + config files
 
 Usage:
     pro-trader setup              # Full interactive wizard
@@ -131,7 +132,7 @@ def _test_command(cmd: list[str], timeout: int = 10) -> tuple[bool, str]:
 
 def _step_openclaw() -> dict:
     """Step 1: Check OpenClaw installation."""
-    console.print("\n[bold cyan]Step 1/5 — OpenClaw Integration[/bold cyan]\n")
+    console.print("\n[bold cyan]Step 1/6 — OpenClaw Integration[/bold cyan]\n")
 
     result = {"openclaw_available": False, "openclaw_version": None}
 
@@ -166,9 +167,205 @@ def _step_openclaw() -> dict:
     return result
 
 
+def _step_trader_profile(existing: dict) -> dict:
+    """Step 2: Collect trader profile — account, risk, goals, recovery."""
+    console.print("\n[bold cyan]Step 2/6 — Trader Profile[/bold cyan]")
+    console.print("[dim]  This helps AI agents personalize analysis to YOUR situation.[/dim]\n")
+
+    profile = existing.get("trader_profile", {})
+
+    # ── Account & Capital ─────────────────────────────────────────
+    console.print("  [bold]Account & Capital[/bold]")
+
+    account_size = Prompt.ask(
+        "  Current account size ($)",
+        default=str(profile.get("account_size", 500)),
+    )
+    try:
+        account_size = float(account_size)
+    except ValueError:
+        account_size = 500.0
+
+    peak_val = profile.get("peak_account_value")
+    peak_str = Prompt.ask(
+        "  Highest account value ever ($, or 'skip')",
+        default=str(peak_val) if peak_val else "skip",
+    )
+    peak_account_value = None
+    if peak_str.lower() != "skip":
+        try:
+            peak_account_value = float(peak_str)
+        except ValueError:
+            pass
+
+    # Auto-detect recovery situation
+    losses_to_recover = 0.0
+    recovery_mode = False
+    if peak_account_value and peak_account_value > account_size:
+        losses_to_recover = peak_account_value - account_size
+        console.print(f"\n  [yellow]Detected loss: ${losses_to_recover:,.0f} "
+                       f"({losses_to_recover / peak_account_value * 100:.0f}% drawdown)[/yellow]")
+        recovery_mode = Confirm.ask("  Enable recovery mode?", default=True)
+    else:
+        recover_input = Prompt.ask(
+            "  Losses to recover ($, or 0)",
+            default=str(profile.get("losses_to_recover", 0)),
+        )
+        try:
+            losses_to_recover = float(recover_input)
+        except ValueError:
+            losses_to_recover = 0.0
+        if losses_to_recover > 0:
+            recovery_mode = Confirm.ask("  Enable recovery mode?", default=True)
+
+    # ── Risk Tolerance ────────────────────────────────────────────
+    console.print("\n  [bold]Risk Tolerance[/bold]")
+    console.print("    1. [green]Conservative[/green]  — Protect capital first, smaller positions")
+    console.print("    2. [yellow]Moderate[/yellow]      — Balanced risk/reward (default)")
+    console.print("    3. [red]Aggressive[/red]    — Higher risk for higher returns")
+
+    risk_map = {"1": "conservative", "2": "moderate", "3": "aggressive"}
+    current_risk = profile.get("risk_tolerance", "moderate")
+    default_risk = {"conservative": "1", "moderate": "2", "aggressive": "3"}.get(current_risk, "2")
+    risk_choice = Prompt.ask("  Risk tolerance", choices=["1", "2", "3"], default=default_risk)
+    risk_tolerance = risk_map[risk_choice]
+
+    # Risk parameters driven by tolerance
+    risk_defaults = {
+        "conservative": {"max_loss_per_trade": 1.0, "max_daily_loss": 2.0, "max_drawdown": 3.0},
+        "moderate":     {"max_loss_per_trade": 2.0, "max_daily_loss": 3.0, "max_drawdown": 5.0},
+        "aggressive":   {"max_loss_per_trade": 3.0, "max_daily_loss": 5.0, "max_drawdown": 8.0},
+    }
+    rd = risk_defaults[risk_tolerance]
+
+    max_loss_trade = Prompt.ask(
+        f"  Max risk per trade (%)",
+        default=str(profile.get("max_loss_per_trade_pct", rd["max_loss_per_trade"])),
+    )
+    max_daily = Prompt.ask(
+        f"  Max daily loss before stopping (%)",
+        default=str(profile.get("max_daily_loss_pct", rd["max_daily_loss"])),
+    )
+    max_dd = Prompt.ask(
+        f"  Max portfolio drawdown before full halt (%)",
+        default=str(profile.get("max_drawdown_pct", rd["max_drawdown"])),
+    )
+
+    # ── Trading Style ─────────────────────────────────────────────
+    console.print("\n  [bold]Trading Style[/bold]")
+    console.print("    1. Day trade   — In and out same day")
+    console.print("    2. Swing       — Hold for days (default)")
+    console.print("    3. Position    — Hold for weeks/months")
+
+    style_map = {"1": "day_trade", "2": "swing", "3": "position"}
+    period_map = {"day_trade": "hours", "swing": "days", "position": "weeks"}
+    current_style = profile.get("trading_style", "swing")
+    default_style = {"day_trade": "1", "swing": "2", "position": "3"}.get(current_style, "2")
+    style_choice = Prompt.ask("  Trading style", choices=["1", "2", "3"], default=default_style)
+    trading_style = style_map[style_choice]
+
+    # Asset preferences
+    console.print("\n  [bold]Preferred Assets[/bold] (comma-separated)")
+    console.print("    Options: equities, futures, crypto, fx")
+    current_assets = profile.get("preferred_assets", ["equities"])
+    assets_str = Prompt.ask("  Assets", default=", ".join(current_assets))
+    preferred_assets = [a.strip().lower() for a in assets_str.split(",") if a.strip()]
+
+    # ── Experience & Goals ────────────────────────────────────────
+    console.print("\n  [bold]Experience & Goals[/bold]")
+    console.print("    Experience: 1. Beginner  2. Intermediate  3. Advanced")
+
+    exp_map = {"1": "beginner", "2": "intermediate", "3": "advanced"}
+    current_exp = profile.get("experience_level", "intermediate")
+    default_exp = {"beginner": "1", "intermediate": "2", "advanced": "3"}.get(current_exp, "2")
+    exp_choice = Prompt.ask("  Experience level", choices=["1", "2", "3"], default=default_exp)
+
+    console.print("    Goal: 1. Growth  2. Income  3. Recovery  4. Preservation")
+    goal_map = {"1": "growth", "2": "income", "3": "recovery", "4": "preservation"}
+    current_goal = profile.get("trading_goal", "recovery" if recovery_mode else "growth")
+    default_goal = {"growth": "1", "income": "2", "recovery": "3", "preservation": "4"}.get(current_goal, "1")
+    goal_choice = Prompt.ask("  Trading goal", choices=["1", "2", "3", "4"], default=default_goal)
+
+    # ── Recovery Plan ─────────────────────────────────────────────
+    recovery_timeline_weeks = None
+    recovery_strategy = "moderate"
+
+    if recovery_mode:
+        console.print("\n  [bold yellow]Recovery Plan[/bold yellow]")
+        console.print(f"  Account: ${account_size:,.0f} → "
+                       f"Target: ${account_size + losses_to_recover:,.0f} "
+                       f"(recover ${losses_to_recover:,.0f})")
+
+        timeline = Prompt.ask(
+            "  Recovery timeline (weeks, or 'no_rush')",
+            default=str(profile.get("recovery_timeline_weeks", "no_rush")),
+        )
+        if timeline.lower() != "no_rush":
+            try:
+                recovery_timeline_weeks = int(timeline)
+            except ValueError:
+                pass
+
+        console.print("    1. [green]Conservative rebuild[/green] — Slow, safe, no risk increase")
+        console.print("    2. [yellow]Moderate recovery[/yellow]    — Slightly larger positions")
+        console.print("    3. [red]Aggressive recovery[/red]   — Maximum acceptable risk")
+
+        rec_map = {"1": "conservative_rebuild", "2": "moderate", "3": "aggressive"}
+        current_rec = profile.get("recovery_strategy", "moderate")
+        default_rec = {"conservative_rebuild": "1", "moderate": "2", "aggressive": "3"}.get(current_rec, "2")
+        rec_choice = Prompt.ask("  Recovery strategy", choices=["1", "2", "3"], default=default_rec)
+        recovery_strategy = rec_map[rec_choice]
+
+        if recovery_timeline_weeks and losses_to_recover > 0:
+            weekly_target = losses_to_recover / recovery_timeline_weeks
+            weekly_pct = (weekly_target / account_size) * 100
+            console.print(f"\n  [dim]Weekly target: ${weekly_target:,.0f}/wk ({weekly_pct:.1f}% of account)[/dim]")
+            if weekly_pct > 10:
+                console.print("  [red]That pace is very aggressive — AI will prioritize risk management.[/red]")
+            elif weekly_pct > 5:
+                console.print("  [yellow]Ambitious but achievable with discipline.[/yellow]")
+
+    # ── Build profile dict ────────────────────────────────────────
+    result = {
+        "account_size": account_size,
+        "peak_account_value": peak_account_value,
+        "losses_to_recover": losses_to_recover,
+        "recovery_mode": recovery_mode,
+        "risk_tolerance": risk_tolerance,
+        "max_loss_per_trade_pct": float(max_loss_trade),
+        "max_daily_loss_pct": float(max_daily),
+        "max_drawdown_pct": float(max_dd),
+        "trading_style": trading_style,
+        "holding_period": period_map.get(trading_style, "days"),
+        "preferred_assets": preferred_assets,
+        "experience_level": exp_map[exp_choice],
+        "trading_goal": goal_map[goal_choice],
+        "recovery_timeline_weeks": recovery_timeline_weeks,
+        "recovery_strategy": recovery_strategy,
+    }
+
+    # Summary
+    console.print("\n  [bold]Profile Summary[/bold]")
+    summary = Table(show_header=False)
+    summary.add_column("Key", style="bold")
+    summary.add_column("Value")
+    summary.add_row("Account", f"${account_size:,.0f}")
+    if recovery_mode:
+        summary.add_row("Recovery target", f"${account_size + losses_to_recover:,.0f}")
+        summary.add_row("Recovery strategy", recovery_strategy)
+    summary.add_row("Risk tolerance", risk_tolerance)
+    summary.add_row("Style", f"{trading_style} ({period_map.get(trading_style, 'days')})")
+    summary.add_row("Assets", ", ".join(preferred_assets))
+    summary.add_row("Experience", exp_map[exp_choice])
+    summary.add_row("Goal", goal_map[goal_choice])
+    console.print(summary)
+
+    return result
+
+
 def _step_broker(env: dict[str, str]) -> dict[str, str]:
-    """Step 2: Configure broker API keys."""
-    console.print("\n[bold cyan]Step 2/5 — Broker Configuration (Alpaca)[/bold cyan]\n")
+    """Step 3: Configure broker API keys."""
+    console.print("\n[bold cyan]Step 3/6 — Broker Configuration (Alpaca)[/bold cyan]\n")
 
     current_key = env.get("ALPACA_API_KEY", "")
     current_secret = env.get("ALPACA_SECRET_KEY", "")
@@ -232,7 +429,7 @@ def _step_broker(env: dict[str, str]) -> dict[str, str]:
 
 def _step_llm(env: dict[str, str]) -> dict[str, str]:
     """Step 3: Configure LLM provider."""
-    console.print("\n[bold cyan]Step 3/5 — LLM Provider[/bold cyan]\n")
+    console.print("\n[bold cyan]Step 4/6 — LLM Provider[/bold cyan]\n")
 
     providers = {
         "1": ("anthropic", "ANTHROPIC_API_KEY", "Anthropic (Claude)"),
@@ -266,7 +463,7 @@ def _step_llm(env: dict[str, str]) -> dict[str, str]:
 
 def _step_discord(env: dict[str, str], openclaw_info: dict) -> dict[str, str]:
     """Step 4: Verify Discord channels."""
-    console.print("\n[bold cyan]Step 4/5 — Discord Channels[/bold cyan]\n")
+    console.print("\n[bold cyan]Step 5/6 — Discord Channels[/bold cyan]\n")
 
     if not openclaw_info.get("openclaw_available"):
         console.print("  [dim]Skipped — openclaw not available.[/dim]")
@@ -295,7 +492,7 @@ def _step_discord(env: dict[str, str], openclaw_info: dict) -> dict[str, str]:
 
 def _step_plugins() -> dict:
     """Step 5: Review and toggle plugins."""
-    console.print("\n[bold cyan]Step 5/5 — Plugin Configuration[/bold cyan]\n")
+    console.print("\n[bold cyan]Step 6/6 — Plugin Configuration[/bold cyan]\n")
 
     plugin_cfg: dict = {}
 
@@ -432,20 +629,24 @@ def run_wizard() -> None:
     ))
 
     env = _load_env()
+    user_cfg = _load_user_config()
 
     # Step 1: OpenClaw
     openclaw_info = _step_openclaw()
 
-    # Step 2: Broker
+    # Step 2: Trader Profile
+    trader_profile = _step_trader_profile(user_cfg)
+
+    # Step 3: Broker
     env = _step_broker(env)
 
-    # Step 3: LLM
+    # Step 4: LLM
     env = _step_llm(env)
 
-    # Step 4: Discord
+    # Step 5: Discord
     env = _step_discord(env, openclaw_info)
 
-    # Step 5: Plugins
+    # Step 6: Plugins
     plugin_cfg = _step_plugins()
 
     # ── Summary & Write ──────────────────────────────────────────────────
@@ -458,6 +659,10 @@ def run_wizard() -> None:
     summary.add_column("Value")
 
     alpaca_url = env.get("ALPACA_BASE_URL", "")
+    summary.add_row("Account", f"${trader_profile.get('account_size', 0):,.0f}")
+    summary.add_row("Risk tolerance", trader_profile.get("risk_tolerance", "moderate"))
+    if trader_profile.get("recovery_mode"):
+        summary.add_row("Recovery mode", f"recover ${trader_profile.get('losses_to_recover', 0):,.0f}")
     summary.add_row("Broker", "paper" if "paper" in alpaca_url else "LIVE")
     summary.add_row("LLM provider", llm_provider)
     summary.add_row("OpenClaw", "available" if openclaw_info.get("openclaw_available") else "not installed")
@@ -475,8 +680,9 @@ def run_wizard() -> None:
     console.print(f"  [green]Wrote {_ENV_FILE}[/green]")
 
     # Write user config
-    user_cfg = _load_user_config()
     user_cfg["llm_provider"] = llm_provider
+    user_cfg["trader_profile"] = trader_profile
+    user_cfg["account_value"] = trader_profile.get("account_size", 500)
     if plugin_cfg:
         user_cfg.setdefault("plugin_config", {}).update(plugin_cfg)
     _save_user_config(user_cfg)
