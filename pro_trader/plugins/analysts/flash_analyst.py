@@ -31,10 +31,37 @@ def _build_profile_block(context: dict | None) -> str:
     if risk:
         parts.append(f"- Risk tolerance: {risk}")
 
+    # Behavioral risk context
+    reaction = profile.get("reaction_to_loss")
+    if reaction:
+        reaction_label = {
+            "sell_all": "very loss-averse (would sell everything at -20%)",
+            "sell_some": "somewhat loss-averse (would reduce at -20%)",
+            "hold": "steady (would hold through -20% drawdown)",
+            "buy_more": "contrarian (would buy more at -20% drawdown)",
+        }.get(reaction, reaction)
+        parts.append(f"- Loss behavior: {reaction_label}")
+
+    worst_loss = profile.get("worst_acceptable_loss")
+    if worst_loss:
+        parts.append(f"- Max acceptable loss per trade: ${worst_loss:,.0f}")
+
+    max_risk = profile.get("max_loss_per_trade_pct")
+    if max_risk:
+        parts.append(f"- Max risk per trade: {max_risk}%")
+
+    max_pos = profile.get("max_position_pct")
+    if max_pos:
+        parts.append(f"- Max position size: {max_pos}% of account")
+
     style = profile.get("trading_style")
     period = profile.get("holding_period")
     if style:
         parts.append(f"- Trading style: {style} (holding: {period or 'days'})")
+
+    hours = profile.get("market_hours_available")
+    if hours and hours != "full_day":
+        parts.append(f"- Market availability: {hours} (favor limit orders, wider stops)")
 
     exp = profile.get("experience_level")
     if exp:
@@ -44,17 +71,29 @@ def _build_profile_block(context: dict | None) -> str:
     if goal:
         parts.append(f"- Goal: {goal}")
 
-    max_risk = profile.get("max_loss_per_trade_pct")
-    if max_risk:
-        parts.append(f"- Max risk per trade: {max_risk}%")
+    autonomy = profile.get("autonomy_level")
+    if autonomy == "notify_only":
+        parts.append("- Mode: analysis only (user trades manually)")
 
     if profile.get("recovery_mode"):
         loss = profile.get("losses_to_recover", 0)
         strategy = profile.get("recovery_strategy", "moderate")
         timeline = profile.get("recovery_timeline_weeks")
+        loss_cause = profile.get("loss_cause")
         parts.append(f"- RECOVERY MODE: recovering ${loss:,.0f}, strategy={strategy}")
+        if loss_cause and loss_cause != "unknown":
+            cause_label = {
+                "market_crash": "market crash (strategy sound, market turned)",
+                "bad_picks": "bad stock picks (need higher conviction trades)",
+                "overleveraged": "over-leveraged (need smaller positions)",
+                "emotional_trading": "emotional trading (need strict discipline)",
+            }.get(loss_cause, loss_cause)
+            parts.append(f"- Loss cause: {cause_label}")
         if timeline:
             parts.append(f"- Recovery timeline: {timeline} weeks")
+        monthly = profile.get("monthly_deposit", 0)
+        if monthly > 0:
+            parts.append(f"- Adding ${monthly:,.0f}/mo in deposits")
         parts.append("- Prioritize high-probability setups. Avoid speculation.")
 
     if len(parts) <= 1:

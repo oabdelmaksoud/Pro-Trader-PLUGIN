@@ -78,16 +78,44 @@ class CircuitBreakerPlugin(RiskPlugin):
         if portfolio.position_count >= self._max_positions:
             warnings.append(f"Max positions reached: {portfolio.position_count}")
 
-        # Recovery mode: tighten limits further as losses approach threshold
+        # Portfolio heat check — total risk across all positions
+        max_heat = self._trader_profile.get("max_portfolio_heat_pct", 6.0)
+        if portfolio.heat and portfolio.heat > max_heat:
+            return {
+                "approved": False,
+                "reason": f"Portfolio heat {portfolio.heat:.1f}% exceeds {max_heat}% limit",
+                "adjustments": {},
+                "warnings": [f"Portfolio heat limit hit: {portfolio.heat:.1f}%"],
+            }
+
+        # Behavioral risk: loss-averse traders get extra protection
+        reaction = self._trader_profile.get("reaction_to_loss", "hold")
+        if reaction == "sell_all":
+            adjustments["position_size_factor"] = adjustments.get("position_size_factor", 1.0) * 0.5
+            warnings.append("Loss-averse profile: position size halved")
+        elif reaction == "sell_some":
+            adjustments["position_size_factor"] = adjustments.get("position_size_factor", 1.0) * 0.75
+            warnings.append("Moderate loss-averse profile: position size reduced 25%")
+
+        # Recovery mode: tighten limits further
         if self._trader_profile.get("recovery_mode"):
             risk_tol = self._trader_profile.get("risk_tolerance", "moderate")
+            loss_cause = self._trader_profile.get("loss_cause")
+
             if risk_tol == "conservative":
-                # Reduce position size by 30% in conservative recovery
-                adjustments["position_size_factor"] = 0.7
+                adjustments["position_size_factor"] = adjustments.get("position_size_factor", 1.0) * 0.7
                 warnings.append("Recovery mode (conservative): position size reduced 30%")
             elif risk_tol == "aggressive":
-                # Allow full sizing but warn
                 warnings.append("Recovery mode (aggressive): full sizing allowed, monitor closely")
+
+            # Loss-cause-specific circuit breakers
+            if loss_cause == "overleveraged":
+                adjustments["position_size_factor"] = adjustments.get("position_size_factor", 1.0) * 0.8
+                warnings.append("Overleveraged history: extra 20% size reduction")
+            elif loss_cause == "emotional_trading":
+                # Enforce the cooldown strictly — no manual overrides
+                adjustments["strict_automation"] = True
+                warnings.append("Emotional trading history: strict automation enforced")
 
         return {
             "approved": True,
