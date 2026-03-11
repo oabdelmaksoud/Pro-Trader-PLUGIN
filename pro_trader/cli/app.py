@@ -254,6 +254,11 @@ def setup(
     """Interactive setup wizard for first-time configuration."""
     from pro_trader.cli.setup_wizard import run_wizard, run_check, run_update, run_uninstall
 
+    flags = sum([check, update, uninstall])
+    if flags > 1:
+        console.print("[red]Only one of --check, --update, --uninstall can be used at a time.[/red]")
+        raise typer.Exit(1)
+
     try:
         if uninstall:
             run_uninstall()

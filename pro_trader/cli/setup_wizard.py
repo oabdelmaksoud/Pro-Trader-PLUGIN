@@ -30,7 +30,6 @@ try:
     from rich.panel import Panel
     from rich.prompt import Prompt, Confirm
     from rich.table import Table
-    from rich.text import Text
 except ImportError:
     print("Missing dependencies. Run: pip install rich")
     sys.exit(1)
@@ -148,15 +147,21 @@ def _step_openclaw() -> dict:
         result["openclaw_available"] = True
         result["openclaw_version"] = version
         console.print(f"  [green]openclaw found:[/green] {version}")
+        # Warn if version is below minimum compatible (v2026.2.26)
+        if "v2026" not in version and "2026" not in version:
+            console.print("  [yellow]WARNING: Pro-Trader is tested with openclaw v2026.x[/yellow]")
+            console.print("  [dim]message send CLI is stable across versions, but newer is better[/dim]")
     else:
         console.print(f"  [yellow]openclaw found but --version failed:[/yellow] {version}")
 
-    # Test message send (dry check — just verify CLI parses)
-    ok, out = _test_command(["openclaw", "message", "send", "--help"])
-    if ok:
-        console.print("  [green]message send[/green] — available")
-    else:
-        console.print("  [yellow]message send[/yellow] — not available")
+    # Probe the CLI subcommands Pro-Trader actually uses
+    for subcmd, label in [
+        (["openclaw", "message", "send", "--help"], "message send"),
+        (["openclaw", "cron", "list", "--help"], "cron list"),
+    ]:
+        ok, out = _test_command(subcmd)
+        status = "[green]available[/green]" if ok else "[yellow]not available[/yellow]"
+        console.print(f"  {label} — {status}")
 
     return result
 
@@ -538,8 +543,8 @@ def run_update() -> None:
         else:
             console.print(f"  [yellow]Upgrade issue[/yellow]: {out[:120]}")
 
-    # 3. Show new version
-    new_version = _get_installed_version()
+    # 3. Show new version (fresh=True to avoid stale importlib cache)
+    new_version = _get_installed_version(fresh=True)
     if new_version and new_version != current_version:
         console.print(f"\n  Updated: {current_version} → [bold green]{new_version}[/bold green]")
     elif new_version:
@@ -722,8 +727,19 @@ def run_uninstall() -> None:
 
 # ── Internal helpers ─────────────────────────────────────────────────────────
 
-def _get_installed_version() -> str | None:
-    """Get the installed pro-trader package version."""
+def _get_installed_version(fresh: bool = False) -> str | None:
+    """Get the installed pro-trader package version.
+
+    Args:
+        fresh: If True, use a subprocess to avoid stale importlib.metadata cache
+               (useful after pip install/upgrade in the same process).
+    """
+    if fresh:
+        ok, out = _test_command([
+            sys.executable, "-c",
+            "from importlib.metadata import version; print(version('pro-trader'))",
+        ])
+        return out.strip() if ok and out.strip() else None
     try:
         from importlib.metadata import version
         return version("pro-trader")
