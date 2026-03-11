@@ -1510,70 +1510,177 @@ def run_wizard() -> None:
 
 def run_update() -> None:
     """Update Pro-Trader installation and re-validate config."""
-    console.print(Panel("[bold]Pro-Trader Update[/bold]", style="cyan"))
 
-    # 1. Show current version
+    # ── Helper: print a styled update step header ────────────────────────────
+    def _update_step(step: int, total: int, label: str) -> None:
+        filled = step
+        empty = total - step
+        bar = "[bold cyan]" + "\u2588" * (filled * 3) + "[/bold cyan]"
+        if empty > 0:
+            bar += "[dim]\u2591" * (empty * 3) + "[/dim]"
+        console.print()
+        console.print(Rule(style="dim cyan"))
+        console.print(
+            f"  {bar}  [bold white]{step}[/bold white][dim]/{total}[/dim]"
+        )
+        console.print(
+            f"  [bold cyan]\u25b6 {label}[/bold cyan]"
+        )
+        console.print()
+
+    # ── Update banner ───────────────────────────────────────────────────────
+    console.print()
+    console.print(
+        Panel(
+            Align.center(
+                Text.from_markup(
+                    f"[bold cyan]{_LOGO}[/bold cyan]\n"
+                    "[bold white]~ Update Manager ~[/bold white]\n\n"
+                    "[dim]\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510[/dim]\n"
+                    "[dim]\u2502[/dim]  Scanning for updates and validating  [dim]\u2502[/dim]\n"
+                    "[dim]\u2502[/dim]  your trading environment ...         [dim]\u2502[/dim]\n"
+                    "[dim]\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518[/dim]"
+                )
+            ),
+            border_style="cyan",
+            padding=(1, 4),
+            title="[bold cyan] \u2500\u2500 System Update \u2500\u2500 [/bold cyan]",
+        )
+    )
+
+    update_steps = [
+        "Version Check",
+        "Pull / Upgrade",
+        "OpenClaw",
+        "Plugins",
+        "Config Validation",
+    ]
+    total_steps = len(update_steps)
+    results: list[tuple[str, bool, str]] = []
+
+    # ── Step 1: Version check ───────────────────────────────────────────────
+    _update_step(1, total_steps, update_steps[0])
+
     current_version = _get_installed_version()
-    if current_version:
-        console.print(f"  Current version: [bold]{current_version}[/bold]")
-    else:
-        console.print("  [yellow]Pro-Trader not installed as package[/yellow]")
-
-    # 2. Check for source vs pip install
     is_editable = _is_editable_install()
+    install_label = "editable (dev)" if is_editable else "pip package"
+
+    version_table = Table(
+        show_header=False, show_lines=False, box=None, padding=(0, 2),
+    )
+    version_table.add_column("Label", style="dim")
+    version_table.add_column("Value", style="bold")
+    if current_version:
+        version_table.add_row(
+            "  \u251c Current version",
+            f"[bold green]{current_version}[/bold green]",
+        )
+    else:
+        version_table.add_row(
+            "  \u251c Current version",
+            "[yellow]not installed as package[/yellow]",
+        )
+    version_table.add_row(
+        "  \u2514 Install type",
+        f"[cyan]{install_label}[/cyan]",
+    )
+    console.print(version_table)
+    results.append(("Version Check", True, current_version or "unknown"))
+
+    # ── Step 2: Pull / Upgrade ──────────────────────────────────────────────
+    _update_step(2, total_steps, update_steps[1])
 
     if is_editable:
-        console.print("  Install type:    [cyan]editable (dev)[/cyan]\n")
-        console.print("  Pulling latest source...")
+        console.print("    [dim italic]Pulling latest source...[/dim italic]")
         ok, out = _test_command(["git", "-C", str(_REPO), "pull", "--ff-only"], timeout=30)
         if ok:
-            console.print(f"  [green]Git pull OK[/green]: {out.splitlines()[-1] if out else 'up to date'}")
+            git_msg = out.splitlines()[-1] if out else "up to date"
+            console.print(f"    [green]\u2713[/green] Git pull    [green]{git_msg}[/green]")
+            results.append(("Git Pull", True, git_msg))
         else:
-            console.print(f"  [yellow]Git pull failed[/yellow]: {out[:120]}")
-            console.print("  [dim]You may need to commit or stash local changes first.[/dim]")
+            console.print(f"    [red]\u2717[/red] Git pull    [yellow]{out[:100]}[/yellow]")
+            console.print("      [dim]\u2514 You may need to commit or stash local changes first.[/dim]")
+            results.append(("Git Pull", False, out[:60]))
 
-        # Re-install in editable mode to pick up new entry points
-        console.print("  Re-installing in editable mode...")
+        console.print("    [dim italic]Re-installing in editable mode...[/dim italic]")
         ok, out = _test_command(
             [sys.executable, "-m", "pip", "install", "-e", f"{_REPO}[all]", "-q"],
             timeout=120,
         )
         if ok:
-            console.print("  [green]Reinstall OK[/green]")
+            console.print(f"    [green]\u2713[/green] Reinstall   [green]OK[/green]")
+            results.append(("Reinstall", True, "OK"))
         else:
-            console.print(f"  [yellow]Reinstall issue[/yellow]: {out[:120]}")
+            console.print(f"    [red]\u2717[/red] Reinstall   [yellow]{out[:100]}[/yellow]")
+            results.append(("Reinstall", False, out[:60]))
     else:
-        console.print("  Install type:    [cyan]pip package[/cyan]\n")
-        console.print("  Upgrading pro-trader...")
+        console.print("    [dim italic]Upgrading pro-trader package...[/dim italic]")
         ok, out = _test_command(
             [sys.executable, "-m", "pip", "install", "--upgrade", "pro-trader[all]", "-q"],
             timeout=120,
         )
         if ok:
-            console.print("  [green]Upgrade OK[/green]")
+            console.print(f"    [green]\u2713[/green] Upgrade     [green]OK[/green]")
+            results.append(("Upgrade", True, "OK"))
         else:
-            console.print(f"  [yellow]Upgrade issue[/yellow]: {out[:120]}")
+            console.print(f"    [red]\u2717[/red] Upgrade     [yellow]{out[:100]}[/yellow]")
+            results.append(("Upgrade", False, out[:60]))
 
-    # 3. Show new version (fresh=True to avoid stale importlib cache)
+    # Show version diff
     new_version = _get_installed_version(fresh=True)
     if new_version and new_version != current_version:
-        console.print(f"\n  Updated: {current_version} → [bold green]{new_version}[/bold green]")
+        console.print()
+        console.print(
+            Panel(
+                Align.center(
+                    Text.from_markup(
+                        "[dim]Old[/dim]  [bold red]{old}[/bold red]  "
+                        "[bold white]\u2500\u2500\u25b6[/bold white]  "
+                        "[bold green]{new}[/bold green]  [dim]New[/dim]".format(
+                            old=current_version or "???",
+                            new=new_version,
+                        )
+                    )
+                ),
+                border_style="green",
+                title="[bold green] \u2713 Version Updated [/bold green]",
+                padding=(1, 4),
+            )
+        )
     elif new_version:
-        console.print(f"\n  Already at latest: [bold]{new_version}[/bold]")
+        console.print()
+        console.print(
+            Panel(
+                Align.center(
+                    Text.from_markup(
+                        "[bold cyan]You're already running the latest![/bold cyan]\n\n"
+                        f"[dim]v{new_version} -- nothing to upgrade[/dim]"
+                    )
+                ),
+                border_style="cyan",
+                title="[bold cyan] \u2713 Up to Date [/bold cyan]",
+                padding=(1, 4),
+            )
+        )
 
-    # 4. Re-validate OpenClaw compatibility
-    console.print("\n  Checking OpenClaw compatibility...")
+    # ── Step 3: OpenClaw ────────────────────────────────────────────────────
+    _update_step(3, total_steps, update_steps[2])
+
     if shutil.which("openclaw"):
         ok, ver = _test_command(["openclaw", "--version"])
         if ok:
-            console.print(f"  [green]OpenClaw OK[/green]: {ver}")
+            console.print(f"    [green]\u2713[/green] OpenClaw    [green]{ver.strip()}[/green]")
+            results.append(("OpenClaw", True, ver.strip()))
         else:
-            console.print(f"  [yellow]OpenClaw version check failed[/yellow]")
+            console.print(f"    [yellow]\u2717[/yellow] OpenClaw    [yellow]version check failed[/yellow]")
+            results.append(("OpenClaw", False, "version check failed"))
     else:
-        console.print("  [dim]OpenClaw not installed (Discord disabled)[/dim]")
+        console.print(f"    [dim]\u2500\u2500[/dim] OpenClaw    [dim]not installed (Discord disabled)[/dim]")
+        results.append(("OpenClaw", True, "not installed"))
 
-    # 5. Re-validate plugins load
-    console.print("  Checking plugins...")
+    # ── Step 4: Plugins ─────────────────────────────────────────────────────
+    _update_step(4, total_steps, update_steps[3])
+
     try:
         from pro_trader import ProTrader
         trader = ProTrader()
@@ -1584,15 +1691,19 @@ def run_update() -> None:
             for info in plugins.values()
             if info.get("status") == "ok"
         )
-        console.print(f"  [green]Plugins OK[/green]: {ok_count}/{total} healthy")
+        console.print(f"    [green]\u2713[/green] Plugins     [green]{ok_count}/{total} healthy[/green]")
+        results.append(("Plugins", ok_count == total, f"{ok_count}/{total}"))
     except Exception as e:
-        console.print(f"  [yellow]Plugin check failed[/yellow]: {e}")
+        console.print(f"    [red]\u2717[/red] Plugins     [yellow]{e}[/yellow]")
+        results.append(("Plugins", False, str(e)[:60]))
 
-    # 6. Validate existing config
+    # ── Step 5: Config validation ───────────────────────────────────────────
+    _update_step(5, total_steps, update_steps[4])
+
     env = _load_env()
     issues: list[str] = []
     if not env:
-        issues.append("No .env file — run: pro-trader setup")
+        issues.append("No .env file -- run: pro-trader setup")
     else:
         for key_name in ("ALPACA_API_KEY", "ANTHROPIC_API_KEY"):
             val = env.get(key_name, "")
@@ -1600,25 +1711,107 @@ def run_update() -> None:
                 issues.append(f"{key_name} not configured")
 
     if issues:
-        console.print("\n  [yellow]Config issues:[/yellow]")
+        console.print(f"    [yellow]\u2717[/yellow] Config      [yellow]{len(issues)} issue(s)[/yellow]")
         for issue in issues:
-            console.print(f"    - {issue}")
-        console.print("  [dim]Run: pro-trader setup  to fix[/dim]")
+            console.print(f"      [dim]\u2514[/dim] {issue}")
+        console.print("      [dim]Run: pro-trader setup  to fix[/dim]")
+        results.append(("Config", False, f"{len(issues)} issues"))
     else:
-        console.print("  [green]Config OK[/green]")
+        console.print(f"    [green]\u2713[/green] Config      [green]OK[/green]")
+        results.append(("Config", True, "OK"))
 
-    console.print(Panel("[bold green]Update complete![/bold green]", style="green"))
+    # ── Final summary ───────────────────────────────────────────────────────
+    console.print()
+    console.print(Rule("[bold white] Update Results [/bold white]", style="dim"))
+    console.print()
+
+    all_ok = all(ok for _, ok, _ in results)
+    summary_table = Table(
+        show_header=True, show_lines=True, border_style="dim cyan",
+        padding=(0, 2),
+    )
+    summary_table.add_column("Check", style="bold white")
+    summary_table.add_column("Status", justify="center", min_width=6)
+    summary_table.add_column("Details", style="dim")
+
+    for label, ok, detail in results:
+        marker = "[bold green]\u2713 pass[/bold green]" if ok else "[bold red]\u2717 fail[/bold red]"
+        summary_table.add_row(label, marker, detail)
+
+    console.print(Padding(summary_table, (0, 4)))
+
+    if all_ok:
+        version_display = new_version or current_version or "unknown"
+        _celebrate("All checks passed!", "bold green")
+        console.print()
+        console.print(
+            Panel(
+                Align.center(
+                    Text.from_markup(
+                        "[bold green]\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557[/bold green]\n"
+                        "[bold green]\u2551[/bold green]  Update complete -- all systems go  [bold green]\u2551[/bold green]\n"
+                        "[bold green]\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d[/bold green]\n\n"
+                        f"  Version: [bold cyan]{version_display}[/bold cyan]\n\n"
+                        "[dim]The markets wait for no one -- get back out there.[/dim]"
+                    )
+                ),
+                border_style="green",
+                padding=(1, 4),
+                title="[bold green] \u2713 All Systems Go [/bold green]",
+            )
+        )
+    else:
+        console.print()
+        console.print(
+            Panel(
+                Align.center(
+                    Text.from_markup(
+                        "[bold yellow]\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557[/bold yellow]\n"
+                        "[bold yellow]\u2551[/bold yellow]  Update finished -- some items need  [bold yellow]\u2551[/bold yellow]\n"
+                        "[bold yellow]\u2551[/bold yellow]  your attention (see \u2717 above)       [bold yellow]\u2551[/bold yellow]\n"
+                        "[bold yellow]\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d[/bold yellow]\n\n"
+                        "[dim]Run [bold]pro-trader setup[/bold] to reconfigure if needed.[/dim]"
+                    )
+                ),
+                border_style="yellow",
+                padding=(1, 4),
+                title="[bold yellow] \u26a0 Heads Up [/bold yellow]",
+            )
+        )
 
 
 # ── Uninstall mode ───────────────────────────────────────────────────────────
 
 def run_uninstall() -> None:
     """Remove Pro-Trader configuration, data, and optionally the package."""
-    console.print(Panel(
-        "[bold red]Pro-Trader Uninstall[/bold red]\n"
-        "This will remove Pro-Trader configuration files and data.",
-        style="red",
-    ))
+
+    # ── Farewell banner ─────────────────────────────────────────────────────
+    farewell_art = r"""
+       _____                 _ _
+      / ____|               | | |
+     | |  __  ___   ___   __| | |__  _   _  ___
+     | | |_ |/ _ \ / _ \ / _` | '_ \| | | |/ _ \
+     | |__| | (_) | (_) | (_| | |_) | |_| |  __/
+      \_____|\___/ \___/ \__,_|_.__/ \__, |\___|
+                                      __/ |
+                                     |___/
+    """
+    console.print()
+    console.print(
+        Panel(
+            Align.center(
+                Text.from_markup(
+                    f"[bold red]{farewell_art}[/bold red]\n"
+                    "[bold white]~ Uninstall Wizard ~[/bold white]\n\n"
+                    "[dim]We'll walk through this together -- nothing is deleted[/dim]\n"
+                    "[dim]without your say-so.[/dim]"
+                )
+            ),
+            border_style="red",
+            padding=(1, 4),
+            title="[bold red] \u2500\u2500 Farewell, Trader \u2500\u2500 [/bold red]",
+        )
+    )
 
     removed: list[str] = []
     skipped: list[str] = []
@@ -1638,65 +1831,108 @@ def run_uninstall() -> None:
     if results_dir.exists():
         artifacts.append(("Results directory", results_dir, "results/"))
 
-    console.print("\n  [bold]Files and directories to remove:[/bold]\n")
-    table = Table(show_header=True, show_lines=False)
-    table.add_column("Item", style="bold")
+    # ── Artifact inventory table ────────────────────────────────────────────
+    console.print()
+    console.print(Rule("[bold white] Artifact Inventory [/bold white]", style="dim red"))
+    console.print()
+
+    table = Table(
+        show_header=True, show_lines=True, border_style="dim red",
+        padding=(0, 2),
+    )
+    table.add_column("", justify="center", width=3)
+    table.add_column("Item", style="bold white")
     table.add_column("Path", style="dim")
-    table.add_column("Exists")
+    table.add_column("Found", justify="center")
 
     for label, path, display in artifacts:
         exists = path.exists()
-        status = "[green]yes[/green]" if exists else "[dim]no[/dim]"
-        table.add_row(label, display, status)
-    console.print(table)
+        icon = "[green]\u2713[/green]" if exists else "[dim]\u2500[/dim]"
+        status = "[green]exists[/green]" if exists else "[dim]absent[/dim]"
+        row_icon = "[red]\u2666[/red]" if exists else "[dim]\u25cb[/dim]"
+        table.add_row(row_icon, label, display, status)
 
-    if not Confirm.ask("\n  Proceed with uninstall?", default=False):
-        console.print("[yellow]Cancelled.[/yellow]")
+    console.print(Padding(table, (0, 4)))
+    console.print()
+
+    if not Confirm.ask("  [bold]Proceed with uninstall?[/bold]", default=False):
+        console.print()
+        console.print(
+            Panel(
+                Align.center(
+                    Text.from_markup(
+                        "[bold cyan]Uninstall cancelled -- nothing was touched.[/bold cyan]\n\n"
+                        "[dim]Your trading setup lives to fight another day.[/dim]"
+                    )
+                ),
+                border_style="cyan",
+                padding=(1, 4),
+            )
+        )
         return
+
+    # ── Removal phase ───────────────────────────────────────────────────────
+    console.print()
+    console.print(Rule("[bold white] Removing Artifacts [/bold white]", style="dim red"))
+    console.print()
 
     # 2. Remove config files
     if _USER_CONFIG.exists():
         if Confirm.ask("  Delete user config (~/.pro_trader/config.json)?", default=True):
             _USER_CONFIG.unlink()
             removed.append("~/.pro_trader/config.json")
+            console.print("    [red]\u2713[/red] Deleted   ~/.pro_trader/config.json")
         else:
             skipped.append("~/.pro_trader/config.json")
+            console.print("    [yellow]\u2500[/yellow] Kept      ~/.pro_trader/config.json")
 
     # Remove user config dir if empty
     if _USER_CONFIG_DIR.exists():
         try:
             _USER_CONFIG_DIR.rmdir()  # Only removes if empty
             removed.append("~/.pro_trader/")
+            console.print("    [red]\u2713[/red] Deleted   ~/.pro_trader/")
         except OSError:
             skipped.append("~/.pro_trader/ (not empty)")
+            console.print("    [yellow]\u2500[/yellow] Kept      ~/.pro_trader/ (not empty)")
 
-    # 3. Remove .env (careful — might have other project keys)
+    # 3. Remove .env (careful -- might have other project keys)
     if _ENV_FILE.exists():
         if Confirm.ask("  Delete .env file? (contains API keys for this project)", default=False):
             _ENV_FILE.unlink()
             removed.append(".env")
+            console.print("    [red]\u2713[/red] Deleted   .env")
         else:
             skipped.append(".env (kept)")
+            console.print("    [yellow]\u2500[/yellow] Kept      .env")
 
     # 4. Remove logs and results
     if logs_dir.exists():
         if Confirm.ask("  Delete logs directory?", default=True):
             shutil.rmtree(logs_dir)
             removed.append("logs/")
+            console.print("    [red]\u2713[/red] Deleted   logs/")
         else:
             skipped.append("logs/")
+            console.print("    [yellow]\u2500[/yellow] Kept      logs/")
 
     if results_dir.exists():
         if Confirm.ask("  Delete results directory?", default=False):
             shutil.rmtree(results_dir)
             removed.append("results/")
+            console.print("    [red]\u2713[/red] Deleted   results/")
         else:
             skipped.append("results/")
+            console.print("    [yellow]\u2500[/yellow] Kept      results/")
 
     # 5. Uninstall pip package
     current_version = _get_installed_version()
     if current_version:
-        console.print(f"\n  Pro-Trader package installed: [bold]{current_version}[/bold]")
+        console.print()
+        console.print(
+            f"    [dim]\u251c[/dim] Pro-Trader package installed: "
+            f"[bold]{current_version}[/bold]"
+        )
         if Confirm.ask("  Uninstall pro-trader pip package?", default=False):
             ok, out = _test_command(
                 [sys.executable, "-m", "pip", "uninstall", "pro-trader", "-y"],
@@ -1704,36 +1940,73 @@ def run_uninstall() -> None:
             )
             if ok:
                 removed.append(f"pro-trader package ({current_version})")
-                console.print("  [green]Package uninstalled[/green]")
+                console.print(f"    [red]\u2713[/red] Deleted   pro-trader package ({current_version})")
             else:
-                console.print(f"  [red]Uninstall failed[/red]: {out[:120]}")
+                console.print(f"    [red]\u2717[/red] Failed    {out[:120]}")
                 skipped.append("pro-trader package")
         else:
             skipped.append("pro-trader package (kept)")
+            console.print("    [yellow]\u2500[/yellow] Kept      pro-trader package")
 
-    # 6. Summary
-    console.print("\n[bold]Uninstall Summary[/bold]\n")
+    # ── Summary ─────────────────────────────────────────────────────────────
+    console.print()
+    console.print(Rule("[bold white] Uninstall Summary [/bold white]", style="dim"))
+    console.print()
 
-    if removed:
-        console.print("  [red]Removed:[/red]")
-        for item in removed:
-            console.print(f"    - {item}")
+    summary_table = Table(
+        show_header=True, show_lines=False, border_style="dim",
+        padding=(0, 2),
+    )
+    summary_table.add_column("", justify="center", width=3)
+    summary_table.add_column("Item", style="bold")
+    summary_table.add_column("Action", justify="center")
 
-    if skipped:
-        console.print("  [yellow]Kept:[/yellow]")
-        for item in skipped:
-            console.print(f"    - {item}")
+    for item in removed:
+        summary_table.add_row(
+            "[red]\u2717[/red]", item, "[red]removed[/red]",
+        )
+    for item in skipped:
+        summary_table.add_row(
+            "[green]\u2713[/green]", item, "[green]kept[/green]",
+        )
+
+    if removed or skipped:
+        console.print(Padding(summary_table, (0, 4)))
 
     if not removed:
-        console.print("  [dim]Nothing was removed.[/dim]")
+        console.print(
+            Panel(
+                Align.center(
+                    Text.from_markup(
+                        "[bold cyan]Nothing was removed -- your setup is untouched.[/bold cyan]"
+                    )
+                ),
+                border_style="cyan",
+                padding=(1, 4),
+            )
+        )
     else:
-        console.print(Panel(
-            "[bold]Pro-Trader has been uninstalled.[/bold]\n\n"
-            "To reinstall:\n"
-            '  pip install -e ".[all]"\n'
-            "  pro-trader setup",
-            style="yellow",
-        ))
+        console.print()
+        console.print(
+            Panel(
+                Align.center(
+                    Text.from_markup(
+                        "[bold white]Until we trade again...[/bold white]\n\n"
+                        "[dim]\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510[/dim]\n"
+                        "[dim]\u2502[/dim]  To reinstall at any time, run:     [dim]\u2502[/dim]\n"
+                        "[dim]\u2502[/dim]                                     [dim]\u2502[/dim]\n"
+                        '[dim]\u2502[/dim]  [bold cyan]pip install -e ".[all]"[/bold cyan]            [dim]\u2502[/dim]\n'
+                        "[dim]\u2502[/dim]  [bold cyan]pro-trader setup[/bold cyan]                  [dim]\u2502[/dim]\n"
+                        "[dim]\u2502[/dim]                                     [dim]\u2502[/dim]\n"
+                        "[dim]\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518[/dim]\n\n"
+                        "[dim italic]It's been a pleasure trading with you.[/dim italic]"
+                    )
+                ),
+                border_style="red",
+                padding=(1, 4),
+                title="[bold red] \u2500\u2500 Goodbye \u2500\u2500 [/bold red]",
+            )
+        )
 
 
 # ── Internal helpers ─────────────────────────────────────────────────────────
