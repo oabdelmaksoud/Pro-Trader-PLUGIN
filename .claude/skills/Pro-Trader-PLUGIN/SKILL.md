@@ -4,212 +4,281 @@
 
 ## Overview
 
-This skill teaches the development patterns for Pro-Trader-PLUGIN, a Python-based trading system that combines automated market analysis, plugin-based architecture, and real-time monitoring. The codebase follows a modular design with data flows, trading agents, monitoring scripts, and a web dashboard for visualization.
+This skill covers development patterns for a comprehensive trading system built in Python. The codebase implements a plugin-based architecture for market data analysis, trading intelligence gathering, and automated trading execution. The system includes data flow pipelines, market monitors, trading agents, and a web-based dashboard for real-time monitoring.
 
 ## Coding Conventions
 
 ### File Naming
-- Use `snake_case` for all Python files
-- Plugin files: `{name}_plugin.py` in `pro_trader/plugins/{category}/`
-- Data source files: `{source}_data.py` in `tradingagents/dataflows/`
-- Script files: `{purpose}.py` or `{name}_monitor.py` in `scripts/`
-- State files: `{feature}_state.json` or `{feature}_cache.json` in `logs/`
+- Use **snake_case** for all Python files
+- Plugin files follow pattern: `{category}_{name}.py`
+- Monitor scripts: `{source}_monitor.py`
+- Tracker scripts: `{source}_tracker.py`
 
-### Import Style
+### Import Organization
 ```python
 # Standard library imports first
+import sys
+from pathlib import Path
 import json
-import time
-from datetime import datetime
 
-# Third-party imports
-import requests
+# Third party imports
 import pandas as pd
+import numpy as np
 
-# Local imports
-from pro_trader.core.registry import register_plugin
-from tradingagents.dataflows import base_data
+# Local imports with dynamic path resolution
+REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO))
+
+from pro_trader.core.registry import PluginRegistry
+from tradingagents.dataflows.market_data import MarketDataProcessor
 ```
 
-### Commit Conventions
-- Use conventional commit prefixes: `feat:`, `fix:`, `docs:`, `chore:`
-- Keep commit messages around 53 characters
-- Example: `feat: add sentiment analysis plugin for news data`
+### Path Management
+Always use dynamic path resolution to avoid hardcoded paths:
+```python
+REPO = Path(__file__).resolve().parent.parent
+CONFIG_PATH = REPO / "config" / "strategy.json"
+LOGS_PATH = REPO / "logs"
+```
 
 ## Workflows
 
-### Plugin Development Cycle
-**Trigger:** When adding new trading functionality (data source, strategy, monitor, etc.)
+### Plugin Integration
+**Trigger:** When someone wants to add a new data source, analyst, monitor, or other plugin functionality
 **Command:** `/new-plugin`
 
-1. Create plugin implementation in `pro_trader/plugins/{category}/{name}_plugin.py`
+1. Create plugin implementation in `pro_trader/plugins/{category}/`
    ```python
-   from pro_trader.core.registry import register_plugin
+   # pro_trader/plugins/analyzers/sentiment_analyzer.py
+   from pro_trader.core.base import BasePlugin
    
-   @register_plugin('data_source')
-   class NewsPlugin:
-       def fetch_data(self):
-           # Implementation
-           pass
+   class SentimentAnalyzer(BasePlugin):
+       def __init__(self, config):
+           super().__init__(config)
+           self.name = "sentiment_analyzer"
+       
+       def process(self, data):
+           # Plugin logic here
+           return processed_data
    ```
 
-2. Update `pro_trader/core/registry.py` to register the plugin
-3. Add plugin to `pyproject.toml` entry_points or dependencies
-4. Create corresponding test file in `tests/test_{name}_plugin.py`
-5. Test the plugin integration with existing pipeline
-
-### Data Source Integration
-**Trigger:** When adding a new data source that affects trading decisions
-**Command:** `/new-data-source`
-
-1. Create data fetching module in `tradingagents/dataflows/{source}_data.py`
+2. Update `pro_trader/core/registry.py` for plugin discovery
    ```python
-   def fetch_{source}_data(symbol):
-       # Fetch data logic
-       data = get_external_data(symbol)
-       
-       # Score the data impact
-       score = calculate_market_impact(data)
-       
-       return {
-           'data': data,
-           'score': score,
-           'timestamp': datetime.now()
+   def discover_plugins(self, category):
+       plugin_dir = self.base_path / "plugins" / category
+       for file_path in plugin_dir.glob("*.py"):
+           # Registration logic
+   ```
+
+3. Add plugin to `pyproject.toml` entry points
+   ```toml
+   [project.entry-points."pro_trader.analyzers"]
+   sentiment = "pro_trader.plugins.analyzers.sentiment_analyzer:SentimentAnalyzer"
+   ```
+
+4. Update `__init__.py` files for imports
+   ```python
+   from .sentiment_analyzer import SentimentAnalyzer
+   __all__ = ["SentimentAnalyzer"]
+   ```
+
+### Fix Imports and Paths
+**Trigger:** When someone needs to fix path dependencies or import errors across the system
+**Command:** `/fix-paths`
+
+1. Add REPO variable using `Path(__file__).resolve().parent.parent`
+   ```python
+   from pathlib import Path
+   REPO = Path(__file__).resolve().parent.parent
+   ```
+
+2. Update `sys.path.insert` with dynamic paths
+   ```python
+   import sys
+   sys.path.insert(0, str(REPO))
+   sys.path.insert(0, str(REPO / "tradingagents"))
+   ```
+
+3. Fix relative imports to use absolute imports from REPO root
+
+4. Update script paths to use REPO root
+   ```python
+   config_file = REPO / "config" / "strategy.json"
+   log_file = REPO / "logs" / "trading_state.json"
+   ```
+
+### Monitor Intelligence Integration
+**Trigger:** When someone wants to add a new data source that feeds into trading decisions
+**Command:** `/add-intelligence`
+
+1. Create new monitor/tracker script in `scripts/`
+   ```python
+   # scripts/crypto_fear_greed_monitor.py
+   def get_fear_greed_index():
+       # Fetch data from API
+       return score, timestamp
+   
+   def update_intelligence_context():
+       score, ts = get_fear_greed_index()
+       # Save to logs/fear_greed_state.json
+   ```
+
+2. Add data source integration in `get_market_data.py`
+   ```python
+   def apply_intelligence_bonuses(symbol, base_score):
+       bonuses = load_intelligence_context()
+       if bonuses.get('fear_greed_bullish'):
+           base_score += 0.15  # Boost score
+       return base_score
+   ```
+
+3. Wire score bonuses into the pipeline by updating scoring logic
+
+4. Update intelligence context loading to include new data source
+
+5. Add cron job for periodic execution
+   ```bash
+   */15 * * * * cd /path/to/repo && python scripts/crypto_fear_greed_monitor.py
+   ```
+
+### Trading System Enhancement
+**Trigger:** When someone wants to enhance the core trading system with new features
+**Command:** `/enhance-trading`
+
+1. Create new module in `tradingagents/` subdirectory
+   ```python
+   # tradingagents/risk_management/kelly_criterion.py
+   class KellyCriterion:
+       def calculate_position_size(self, win_rate, avg_win, avg_loss):
+           # Kelly formula implementation
+           return position_size
+   ```
+
+2. Integrate with existing pipeline scripts
+   ```python
+   # In scripts/full_pipeline_scan.py
+   from tradingagents.risk_management.kelly_criterion import KellyCriterion
+   ```
+
+3. Update `trade_gate.py` with new logic
+   ```python
+   def should_enter_trade(symbol, signals):
+       # Add new risk management checks
+       kelly = KellyCriterion()
+       position_size = kelly.calculate_position_size(...)
+       return position_size > 0.01  # Minimum threshold
+   ```
+
+4. Wire into `get_market_data.py` for scoring adjustments
+
+5. Add configuration to `config/strategy.json` if needed
+   ```json
+   {
+     "risk_management": {
+       "kelly_enabled": true,
+       "max_position_size": 0.1
+     }
+   }
+   ```
+
+### Documentation Overhaul
+**Trigger:** When someone wants to comprehensively update project documentation
+**Command:** `/update-docs`
+
+1. Rewrite `README.md` with current architecture
+   ```markdown
+   # Pro-Trader-PLUGIN
+   
+   ## Architecture
+   ```mermaid
+   graph TD
+       A[Market Data] --> B[Intelligence Pipeline]
+       B --> C[Trading Signals]
+   ```
+
+2. Add system diagrams using Mermaid or ASCII art
+
+3. Document all features and integrations with code examples
+
+4. Update installation and usage instructions
+   ```bash
+   pip install -e .
+   python scripts/full_pipeline_scan.py
+   ```
+
+5. Add configuration examples for common use cases
+
+### Log State Management
+**Trigger:** When someone needs to update or fix state management across log files
+**Command:** `/fix-state`
+
+1. Update relevant JSON state files in `logs/`
+   ```python
+   def reset_trading_state():
+       state = {
+           "last_scan": None,
+           "active_positions": {},
+           "drawdown_level": 0.0
        }
+       with open(REPO / "logs" / "trading_state.json", "w") as f:
+           json.dump(state, f, indent=2)
    ```
 
-2. Wire into `scripts/get_market_data.py` with scoring logic
-3. Update `scripts/full_pipeline_scan.py` to include in agent context
-4. Add to intelligence context loading functions
-5. Test data flow through the complete pipeline
+2. Reset state for new configurations by clearing relevant files
 
-### Monitoring Script Creation
-**Trigger:** When adding automated monitoring for specific market events
-**Command:** `/new-monitor`
+3. Add missing log files with proper initial structure
 
-1. Create monitoring script in `scripts/{name}_monitor.py`
-   ```python
-   import json
-   from datetime import datetime
-   
-   def load_state():
-       try:
-           with open('logs/{name}_state.json', 'r') as f:
-               return json.load(f)
-       except FileNotFoundError:
-           return {}
-   
-   def save_state(state):
-       with open('logs/{name}_state.json', 'w') as f:
-           json.dump(state, f)
-   
-   def monitor_{name}():
-       state = load_state()
-       # Monitoring logic
-       # Alert posting logic
-       save_state(state)
-   ```
-
-2. Add state tracking in `logs/{name}_state.json`
-3. Wire into cron scheduling system
-4. Add Discord alert posting functionality
-5. Test monitoring thresholds and alert delivery
-
-### Trade Execution Enhancement
-**Trigger:** When adding new trading rules, gates, or execution logic
-**Command:** `/enhance-execution`
-
-1. Update `scripts/trade_gate.py` with new gate logic
-   ```python
-   def enhanced_trade_gate(symbol, signal_data):
-       # Existing gate checks
-       if not basic_checks(symbol, signal_data):
-           return False
-       
-       # New enhancement logic
-       if not new_risk_check(symbol):
-           return False
-       
-       return True
-   ```
-
-2. Modify `scripts/close_position.py` for exit handling
-3. Update `config/strategy.json` with new parameters
-4. Add state tracking in `logs/` files
-5. Backtest new execution logic before deployment
+4. Clean up orphaned state files that are no longer used
 
 ### Dashboard Feature Addition
-**Trigger:** When adding new visualization or functionality to the dashboard
-**Command:** `/dashboard-feature`
+**Trigger:** When someone wants to add new dashboard functionality or improve the UI
+**Command:** `/enhance-dashboard`
 
 1. Update `dashboard/index.html` with new UI components
    ```html
-   <div id="new-feature-panel">
-       <h3>New Feature</h3>
-       <div id="feature-data"></div>
+   <div class="metric-card" id="risk-metrics">
+       <h3>Risk Management</h3>
+       <div class="metric-value" id="kelly-size">--</div>
    </div>
    ```
 
 2. Add corresponding API endpoints in `dashboard/server.py`
    ```python
-   @app.route('/api/new-feature')
-   def get_new_feature_data():
-       data = fetch_feature_data()
-       return jsonify(data)
+   @app.route('/api/risk-metrics')
+   def get_risk_metrics():
+       # Load kelly parameters and calculate current risk
+       return jsonify(risk_data)
    ```
 
-3. Implement SSE streaming if real-time updates needed
-4. Add data fetching from trading system logs/APIs
-5. Test UI responsiveness and data accuracy
+3. Implement real-time data streaming using WebSockets if needed
 
-### Documentation Overhaul
-**Trigger:** When significant system changes require comprehensive documentation updates
-**Command:** `/doc-update`
-
-1. Rewrite `README.md` with current architecture
-2. Add or update `SKILL.md`/`AGENTS.md` for OpenClaw compatibility
-3. Include system diagrams and workflow descriptions
-4. Update installation and usage instructions
-5. Review and update code comments for clarity
-
-### Log State Management
-**Trigger:** When adding new features that need persistent state or caching
-**Command:** `/new-state-tracking`
-
-1. Create new JSON log file in `logs/{feature}_state.json` or `logs/{feature}_cache.json`
-   ```python
-   def init_state():
-       return {
-           'last_update': None,
-           'cache': {},
-           'metrics': {
-               'total_updates': 0,
-               'last_reset': datetime.now().isoformat()
-           }
-       }
-   ```
-
-2. Implement state read/write logic in relevant scripts
-3. Add cleanup and maintenance logic for log rotation
-4. Wire into monitoring or execution scripts
-5. Add error handling for corrupted state files
+4. Add PWA features or update service worker for offline capability
 
 ## Testing Patterns
 
-- Test files follow pattern: `*.test.*`
-- Focus on integration testing for plugin compatibility
-- Mock external data sources in tests
-- Test state persistence and recovery scenarios
-- Validate alert and monitoring thresholds
+Tests follow the pattern `*.test.*` and are located throughout the codebase. Common testing approaches:
+
+```python
+# test_plugin_integration.py
+def test_plugin_discovery():
+    registry = PluginRegistry()
+    plugins = registry.discover_plugins("analyzers")
+    assert len(plugins) > 0
+
+def test_market_data_processing():
+    processor = MarketDataProcessor()
+    result = processor.process(mock_data)
+    assert result["score"] > 0
+```
 
 ## Commands
 
 | Command | Purpose |
 |---------|---------|
-| `/new-plugin` | Add a new plugin to the pro-trader plugin system |
-| `/new-data-source` | Wire a new data source into the trading pipeline |
-| `/new-monitor` | Create automated monitoring for market events |
-| `/enhance-execution` | Add new trading rules and execution logic |
-| `/dashboard-feature` | Add new dashboard visualization or functionality |
-| `/doc-update` | Comprehensive documentation updates |
-| `/new-state-tracking` | Create persistent state management for features |
+| `/new-plugin` | Add a new plugin to the pro_trader plugin system |
+| `/fix-paths` | Fix hardcoded paths and import issues for portability |
+| `/add-intelligence` | Add new market intelligence source to trading pipeline |
+| `/enhance-trading` | Add new trading system capabilities like risk management |
+| `/update-docs` | Comprehensively update project documentation |
+| `/fix-state` | Manage persistent state files and log data |
+| `/enhance-dashboard` | Add new features to the trading dashboard interface |

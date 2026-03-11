@@ -34,17 +34,20 @@ class SignalVerifier:
         """
         try:
             import yfinance as yf
+            from datetime import datetime as _dt, timedelta as _td
             stock = yf.Ticker(ticker)
+            # end must be the day *after* signal_date so yfinance returns that day's bars
+            end_date = (_dt.strptime(signal_date, "%Y-%m-%d") + _td(days=1)).strftime("%Y-%m-%d")
             # Fetch intraday 5-min bars for that day
             bars = stock.history(
                 start=signal_date,
-                end=signal_date,
+                end=end_date,
                 interval="5m",
                 prepost=False,
             )
             if bars.empty:
                 # Try daily bars as fallback
-                bars = stock.history(start=signal_date, end=signal_date, interval="1d")
+                bars = stock.history(start=signal_date, end=end_date, interval="1d")
             return bars if not bars.empty else None
         except Exception as e:
             logger.warning(f"yfinance fetch failed for {ticker} on {signal_date}: {e}")

@@ -33,6 +33,7 @@ class PatternTracker:
         "sentiment_peak": "Entered when social sentiment was at extreme bullish",
         "sector_headwind": "Sector was in downtrend at time of entry",
         "held_too_long": "Target was hit but not taken, turned into loser",
+        "unreliable_ticker": "Ticker has historically low signal accuracy (<50%)",
     }
 
     # Adjustment rules: pattern → what to apply to scoring, keyed by threshold count

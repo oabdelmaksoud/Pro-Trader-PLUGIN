@@ -24,9 +24,9 @@ class TradeLedger:
         reason: str = "",
     ):
         """Record a closed trade to the ledger."""
-        if side == "buy":
+        if side in ("buy", "long"):
             pnl_dollar = (exit_price - entry_price) * qty
-        else:  # short
+        else:  # short / sell
             pnl_dollar = (entry_price - exit_price) * qty
 
         pnl_pct = pnl_dollar / (entry_price * qty) if entry_price else 0.0
