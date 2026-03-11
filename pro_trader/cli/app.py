@@ -14,6 +14,10 @@ Usage:
     pro-trader setup --update
     pro-trader setup --uninstall
     pro-trader health
+    pro-trader sync
+    pro-trader sync --apply
+    pro-trader broker list
+    pro-trader broker add
 """
 
 from __future__ import annotations
@@ -270,6 +274,168 @@ def setup(
             run_wizard()
     except KeyboardInterrupt:
         console.print("\n[yellow]Cancelled.[/yellow]")
+
+
+# ── Broker Management ────────────────────────────────────────────────────────
+
+broker_app = typer.Typer(help="Manage broker connections")
+app.add_typer(broker_app, name="broker")
+
+
+@broker_app.command("list")
+def broker_list():
+    """List all broker plugins and their status."""
+    from pro_trader import ProTrader
+
+    trader = ProTrader()
+    brokers = trader.plugins.get_plugins("broker")
+    primary = trader.config.get("primary_broker", "")
+
+    table = Table(title="Broker Plugins")
+    table.add_column("Name", style="bold")
+    table.add_column("Version")
+    table.add_column("Status")
+    table.add_column("Assets")
+    table.add_column("Primary")
+    table.add_column("Description")
+
+    for b in brokers:
+        status = "[green]enabled[/green]" if b.enabled else "[red]disabled[/red]"
+        is_primary = "[bold green]YES[/bold green]" if b.name == primary else ""
+        assets = ", ".join(getattr(b, "supported_assets", []))
+        table.add_row(b.name, b.version, status, assets, is_primary, b.description)
+
+    if not brokers:
+        console.print("[yellow]No broker plugins loaded.[/yellow]")
+    else:
+        console.print(table)
+
+
+@broker_app.command("add")
+def broker_add():
+    """Add a new broker connection (mini setup wizard)."""
+    from pro_trader.cli.setup_wizard import (
+        _BROKER_CONFIGS, _configure_single_broker, _load_env, _save_env,
+    )
+    from rich.prompt import Prompt
+
+    env = _load_env()
+    broker_names = list(_BROKER_CONFIGS.keys())
+
+    console.print("\n[bold]Available brokers:[/bold]")
+    for i, name in enumerate(broker_names, 1):
+        cfg = _BROKER_CONFIGS[name]
+        console.print(f"  {i}. {cfg['label']}")
+
+    choice = Prompt.ask("Select broker", default="1")
+    try:
+        idx = int(choice) - 1
+        if 0 <= idx < len(broker_names):
+            broker_name = broker_names[idx]
+        else:
+            console.print("[red]Invalid choice.[/red]")
+            raise typer.Exit(1)
+    except ValueError:
+        if choice in broker_names:
+            broker_name = choice
+        else:
+            console.print("[red]Invalid choice.[/red]")
+            raise typer.Exit(1)
+
+    _configure_single_broker(broker_name, env)
+    _save_env(env)
+    console.print(f"\n[green]Broker '{broker_name}' configured. Credentials saved to .env[/green]")
+
+
+@broker_app.command("test")
+def broker_test():
+    """Test all connected broker connections."""
+    from pro_trader import ProTrader
+
+    trader = ProTrader()
+    brokers = trader.plugins.get_plugins("broker")
+
+    if not brokers:
+        console.print("[yellow]No broker plugins loaded.[/yellow]")
+        return
+
+    for b in brokers:
+        console.print(f"\n[bold]{b.name}[/bold]:", end=" ")
+        try:
+            health = b.health_check()
+            status = health.get("status", "unknown")
+            if status == "ok":
+                console.print(f"[green]{status}[/green]")
+            else:
+                console.print(f"[yellow]{status}[/yellow]")
+            for k, v in health.items():
+                if k not in ("name", "version", "status"):
+                    console.print(f"  {k}: {v}")
+        except Exception as e:
+            console.print(f"[red]error: {e}[/red]")
+
+
+# ── Sync ────────────────────────────────────────────────────────────────────
+
+@app.command()
+def sync(
+    broker_name: str = typer.Option(None, "--broker", "-b", help="Broker to sync from (default: primary)"),
+    apply: bool = typer.Option(False, "--apply", help="Write synced values to config"),
+):
+    """Sync trader profile from live broker account data."""
+    from pro_trader import ProTrader
+
+    trader = ProTrader()
+    brokers = trader.plugins.get_plugins("broker")
+
+    if not brokers:
+        console.print("[red]No broker plugins available.[/red]")
+        raise typer.Exit(1)
+
+    # Find target broker
+    if broker_name:
+        target = next((b for b in brokers if b.name == broker_name), None)
+    else:
+        primary = trader.config.get("primary_broker", "")
+        target = next((b for b in brokers if b.name == primary), None)
+        if not target:
+            target = brokers[0]
+
+    if not target:
+        console.print(f"[red]Broker '{broker_name}' not found or not enabled.[/red]")
+        raise typer.Exit(1)
+
+    console.print(f"\nSyncing from [bold]{target.name}[/bold]...")
+    summary = target.get_account_summary()
+
+    table = Table(title=f"Account Summary — {target.name}")
+    table.add_column("Field", style="bold")
+    table.add_column("Value")
+    table.add_row("Account ID", summary.account_id or "-")
+    table.add_row("Status", summary.status or "-")
+    table.add_row("Equity", f"${summary.equity:,.2f}")
+    table.add_row("Cash", f"${summary.cash:,.2f}")
+    table.add_row("Buying Power", f"${summary.buying_power:,.2f}")
+    table.add_row("Today P&L", f"${summary.today_pnl:,.2f}")
+    table.add_row("Open Positions", str(summary.open_positions))
+    if summary.position_symbols:
+        table.add_row("Symbols", ", ".join(summary.position_symbols[:15]))
+    table.add_row("PDT", str(summary.pattern_day_trader))
+    table.add_row("Assets", ", ".join(summary.supported_assets) or "-")
+    console.print(table)
+
+    if apply:
+        from pro_trader.cli.setup_wizard import _load_user_config, _save_user_config
+        cfg = _load_user_config()
+        profile = cfg.get("trader_profile", {})
+        if summary.equity > 0:
+            profile["account_size"] = summary.equity
+            cfg["account_value"] = summary.equity
+        cfg["trader_profile"] = profile
+        _save_user_config(cfg)
+        console.print(f"\n[green]Updated config with equity=${summary.equity:,.2f}[/green]")
+    else:
+        console.print(f"\n[dim]Use --apply to write values to config.[/dim]")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────

@@ -7,7 +7,9 @@ import sys
 from pathlib import Path
 
 from pro_trader.core.interfaces import BrokerPlugin
-from pro_trader.models.position import Order, OrderResult, Position, Portfolio, OrderSide
+from pro_trader.models.position import (
+    Order, OrderResult, Position, Portfolio, OrderSide, AccountSummary,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +19,9 @@ sys.path.insert(0, str(_REPO))
 
 class AlpacaBrokerPlugin(BrokerPlugin):
     name = "alpaca"
-    version = "1.0.0"
+    version = "1.1.0"
     description = "Alpaca paper/live trading broker"
+    supported_assets = ["equity", "option", "crypto"]
 
     def __init__(self):
         self._paper = True
@@ -95,6 +98,31 @@ class AlpacaBrokerPlugin(BrokerPlugin):
         except Exception as e:
             logger.warning(f"Failed to get portfolio: {e}")
             return Portfolio()
+
+    def get_account_summary(self) -> AccountSummary:
+        if not self._client:
+            return AccountSummary(broker_name="alpaca")
+        try:
+            account = self._client.get_account()
+            positions = self.get_positions()
+            return AccountSummary(
+                broker_name="alpaca",
+                account_id=str(account.get("id", "")),
+                status=str(account.get("status", "")),
+                equity=float(account.get("equity", 0)),
+                cash=float(account.get("cash", 0)),
+                buying_power=float(account.get("buying_power", 0)),
+                today_pnl=float(account.get("daily_pnl", 0)),
+                day_trade_count=int(account.get("daytrade_count", 0)),
+                pattern_day_trader=bool(account.get("pattern_day_trader", False)),
+                open_positions=len(positions),
+                position_symbols=[p.symbol for p in positions],
+                supported_assets=self.supported_assets,
+                raw=account if isinstance(account, dict) else {},
+            )
+        except Exception as e:
+            logger.warning(f"Failed to get account summary: {e}")
+            return AccountSummary(broker_name="alpaca")
 
     def health_check(self) -> dict:
         return {

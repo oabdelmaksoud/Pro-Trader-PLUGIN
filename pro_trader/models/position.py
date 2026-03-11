@@ -93,3 +93,22 @@ class Portfolio:
             if p.symbol == symbol:
                 return p
         return None
+
+
+@dataclass
+class AccountSummary:
+    """Standardized account snapshot for profile auto-fill. Any broker returns this."""
+    broker_name: str = ""
+    account_id: str = ""
+    status: str = ""                    # active | restricted | closed
+    equity: float = 0.0
+    cash: float = 0.0
+    buying_power: float = 0.0
+    today_pnl: float = 0.0
+    day_trade_count: int = 0
+    pattern_day_trader: bool = False
+    open_positions: int = 0
+    position_symbols: list[str] = field(default_factory=list)
+    supported_assets: list[str] = field(default_factory=list)
+    currency: str = "USD"
+    raw: dict = field(default_factory=dict)

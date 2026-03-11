@@ -32,6 +32,9 @@ DEFAULT_CONFIG = {
     "max_debate_rounds": 2,
     "max_risk_discuss_rounds": 2,
 
+    # ── Broker ────────────────────────────────────────────────────────
+    "primary_broker": "alpaca",
+
     # ── Trading ───────────────────────────────────────────────────────
     "account_value": 500,
     "max_positions": 3,
@@ -110,6 +113,12 @@ DEFAULT_CONFIG = {
     # ── Per-plugin config ─────────────────────────────────────────────
     "plugin_config": {
         "alpaca": {"paper": True},
+        "tastytrade": {"account_id": ""},
+        "ibkr": {"host": "127.0.0.1", "port": 7497, "client_id": 1},
+        "tradier": {},
+        "schwab": {},
+        "coinbase": {},
+        "snaptrade": {"user_id": ""},
         "discord": {
             "war_room_channel": "1469763123010342953",
         },

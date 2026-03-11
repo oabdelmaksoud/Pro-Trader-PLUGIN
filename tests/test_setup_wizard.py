@@ -222,19 +222,26 @@ class TestStepBroker:
     @patch("pro_trader.cli.setup_wizard.Confirm")
     @patch("pro_trader.cli.setup_wizard.Prompt")
     def test_fresh_install_paper(self, mock_prompt, mock_confirm):
-        mock_prompt.ask.side_effect = ["PKABC123456789", "secretABC123456789"]
+        # First ask: broker selection ("1" = Alpaca)
+        # Then: API key, secret key prompts
+        mock_prompt.ask.side_effect = ["1", "PKABC123456789", "secretABC123456789"]
         mock_confirm.ask.return_value = True  # paper trading
-        env = wiz._step_broker({})
+        env, brokers, primary = wiz._step_broker({})
         assert env["ALPACA_API_KEY"] == "PKABC123456789"
         assert env["ALPACA_SECRET_KEY"] == "secretABC123456789"
         assert "paper" in env["ALPACA_BASE_URL"]
+        assert brokers == ["alpaca"]
+        assert primary == "alpaca"
 
     @patch("pro_trader.cli.setup_wizard.Confirm")
-    def test_existing_keys_no_update(self, mock_confirm):
-        mock_confirm.ask.return_value = False  # don't update
+    @patch("pro_trader.cli.setup_wizard.Prompt")
+    def test_existing_keys_no_update(self, mock_prompt, mock_confirm):
+        mock_prompt.ask.side_effect = ["s"]  # skip broker setup
+        mock_confirm.ask.return_value = False
         env = {"ALPACA_API_KEY": "PKABC123456789", "ALPACA_SECRET_KEY": "secretABC123456789"}
-        result = wiz._step_broker(env)
-        assert result["ALPACA_API_KEY"] == "PKABC123456789"
+        result_env, brokers, primary = wiz._step_broker(env)
+        assert result_env["ALPACA_API_KEY"] == "PKABC123456789"
+        assert brokers == []
 
 
 # ── _step_llm ────────────────────────────────────────────────────────────────
@@ -334,7 +341,7 @@ class TestRunWizard:
     @patch("pro_trader.cli.setup_wizard._step_plugins", return_value={})
     @patch("pro_trader.cli.setup_wizard._step_discord", side_effect=lambda e, o: e)
     @patch("pro_trader.cli.setup_wizard._step_llm", side_effect=lambda e: e)
-    @patch("pro_trader.cli.setup_wizard._step_broker", side_effect=lambda e: e)
+    @patch("pro_trader.cli.setup_wizard._step_broker", side_effect=lambda e: (e, [], ""))
     @patch("pro_trader.cli.setup_wizard._step_trader_profile")
     @patch("pro_trader.cli.setup_wizard._step_openclaw")
     @patch("pro_trader.cli.setup_wizard.Confirm")
