@@ -198,6 +198,15 @@ def _step_trader_profile(existing: dict) -> dict:
         except ValueError:
             pass
 
+    monthly_deposit_str = Prompt.ask(
+        "  Monthly deposit to this account ($, or 0)",
+        default=str(profile.get("monthly_deposit", 0)),
+    )
+    try:
+        monthly_deposit = float(monthly_deposit_str)
+    except ValueError:
+        monthly_deposit = 0.0
+
     # Auto-detect recovery situation
     losses_to_recover = 0.0
     recovery_mode = False
@@ -239,16 +248,73 @@ def _step_trader_profile(existing: dict) -> dict:
     rd = risk_defaults[risk_tolerance]
 
     max_loss_trade = Prompt.ask(
-        f"  Max risk per trade (%)",
+        "  Max risk per trade (%)",
         default=str(profile.get("max_loss_per_trade_pct", rd["max_loss_per_trade"])),
     )
     max_daily = Prompt.ask(
-        f"  Max daily loss before stopping (%)",
+        "  Max daily loss before stopping (%)",
         default=str(profile.get("max_daily_loss_pct", rd["max_daily_loss"])),
     )
     max_dd = Prompt.ask(
-        f"  Max portfolio drawdown before full halt (%)",
+        "  Max portfolio drawdown before full halt (%)",
         default=str(profile.get("max_drawdown_pct", rd["max_drawdown"])),
+    )
+
+    # ── Behavioral Risk (Schwab IPQ-style) ────────────────────────
+    console.print("\n  [bold]Risk Behavior[/bold]")
+    console.print("  If your portfolio dropped 20% in a month, what would you do?")
+    console.print("    1. Sell everything")
+    console.print("    2. Sell some to reduce risk")
+    console.print("    3. Hold and wait for recovery")
+    console.print("    4. Buy more at the lower prices")
+
+    reaction_map = {"1": "sell_all", "2": "sell_some", "3": "hold", "4": "buy_more"}
+    current_reaction = profile.get("reaction_to_loss", "hold")
+    default_reaction = {"sell_all": "1", "sell_some": "2", "hold": "3", "buy_more": "4"}.get(current_reaction, "3")
+    reaction_choice = Prompt.ask("  Your reaction", choices=["1", "2", "3", "4"], default=default_reaction)
+    reaction_to_loss = reaction_map[reaction_choice]
+
+    worst_loss_str = Prompt.ask(
+        "  Most you'd accept losing on a single trade ($)",
+        default=str(profile.get("worst_acceptable_loss") or int(account_size * 0.02)),
+    )
+    try:
+        worst_acceptable_loss = float(worst_loss_str)
+    except ValueError:
+        worst_acceptable_loss = account_size * 0.02
+
+    consec_loss_str = Prompt.ask(
+        "  Pause trading after how many losses in a row?",
+        default=str(profile.get("consecutive_loss_tolerance", 3)),
+    )
+    try:
+        consecutive_loss_tolerance = int(consec_loss_str)
+    except ValueError:
+        consecutive_loss_tolerance = 3
+
+    # ── Position Sizing ───────────────────────────────────────────
+    console.print("\n  [bold]Position Sizing[/bold]")
+    console.print("    1. Fixed percent    — Same % of account per trade (default)")
+    console.print("    2. Kelly criterion  — Math-optimal sizing (more volatile)")
+    console.print("    3. Volatility-based — Smaller in volatile markets")
+
+    sizing_map = {"1": "fixed_percent", "2": "kelly", "3": "volatility"}
+    current_sizing = profile.get("position_sizing_method", "fixed_percent")
+    default_sizing = {"fixed_percent": "1", "kelly": "2", "volatility": "3"}.get(current_sizing, "1")
+    sizing_choice = Prompt.ask("  Sizing method", choices=["1", "2", "3"], default=default_sizing)
+    position_sizing_method = sizing_map[sizing_choice]
+
+    # Position limits driven by risk tolerance
+    pos_defaults = {"conservative": 10, "moderate": 15, "aggressive": 20}
+    heat_defaults = {"conservative": 4.0, "moderate": 6.0, "aggressive": 10.0}
+
+    max_pos_pct = Prompt.ask(
+        "  Max position size (% of account)",
+        default=str(profile.get("max_position_pct", pos_defaults[risk_tolerance])),
+    )
+    max_heat = Prompt.ask(
+        "  Max total portfolio risk (% of account at risk across all positions)",
+        default=str(profile.get("max_portfolio_heat_pct", heat_defaults[risk_tolerance])),
     )
 
     # ── Trading Style ─────────────────────────────────────────────
@@ -263,6 +329,23 @@ def _step_trader_profile(existing: dict) -> dict:
     default_style = {"day_trade": "1", "swing": "2", "position": "3"}.get(current_style, "2")
     style_choice = Prompt.ask("  Trading style", choices=["1", "2", "3"], default=default_style)
     trading_style = style_map[style_choice]
+
+    # Market hours availability
+    console.print("\n  When can you monitor the market?")
+    console.print("    1. Full day    — Available during market hours")
+    console.print("    2. Morning     — Only first few hours")
+    console.print("    3. Evening     — Review after close")
+    console.print("    4. Can't watch — Fully automated/alerts only")
+
+    hours_map = {"1": "full_day", "2": "morning", "3": "evening", "4": "cannot_monitor"}
+    current_hours = profile.get("market_hours_available", "full_day")
+    default_hours = {"full_day": "1", "morning": "2", "evening": "3", "cannot_monitor": "4"}.get(current_hours, "1")
+    hours_choice = Prompt.ask("  Availability", choices=["1", "2", "3", "4"], default=default_hours)
+    market_hours = hours_map[hours_choice]
+
+    if market_hours == "cannot_monitor" and trading_style == "day_trade":
+        console.print("  [yellow]Day trading requires market monitoring — switching to swing.[/yellow]")
+        trading_style = "swing"
 
     # Asset preferences
     console.print("\n  [bold]Preferred Assets[/bold] (comma-separated)")
@@ -286,15 +369,69 @@ def _step_trader_profile(existing: dict) -> dict:
     default_goal = {"growth": "1", "income": "2", "recovery": "3", "preservation": "4"}.get(current_goal, "1")
     goal_choice = Prompt.ask("  Trading goal", choices=["1", "2", "3", "4"], default=default_goal)
 
+    # ── Autonomy ──────────────────────────────────────────────────
+    console.print("\n  [bold]Autonomy Level[/bold]")
+    console.print("    1. Notify only    — AI analyzes, you trade manually")
+    console.print("    2. Suggest        — AI proposes trades, you approve (default)")
+    console.print("    3. Semi-auto      — AI auto-trades within conservative limits")
+    console.print("    4. Full auto      — AI executes all approved trades")
+
+    auto_map = {"1": "notify_only", "2": "suggest", "3": "semi_auto", "4": "full_auto"}
+    current_auto = profile.get("autonomy_level", "suggest")
+    default_auto = {"notify_only": "1", "suggest": "2", "semi_auto": "3", "full_auto": "4"}.get(current_auto, "2")
+    auto_choice = Prompt.ask("  Autonomy", choices=["1", "2", "3", "4"], default=default_auto)
+    autonomy_level = auto_map[auto_choice]
+
+    if autonomy_level == "full_auto":
+        console.print("  [red]Full auto: AI will execute trades without asking. "
+                       "Risk limits still apply.[/red]")
+        if not Confirm.ask("  Confirm full auto?", default=False):
+            autonomy_level = "suggest"
+            console.print("  [green]Switched to suggest mode.[/green]")
+
     # ── Recovery Plan ─────────────────────────────────────────────
     recovery_timeline_weeks = None
     recovery_strategy = "moderate"
+    loss_cause = None
+    cooldown_hours = 24
 
     if recovery_mode:
         console.print("\n  [bold yellow]Recovery Plan[/bold yellow]")
         console.print(f"  Account: ${account_size:,.0f} → "
                        f"Target: ${account_size + losses_to_recover:,.0f} "
                        f"(recover ${losses_to_recover:,.0f})")
+
+        if monthly_deposit > 0:
+            months_deposits_only = losses_to_recover / monthly_deposit
+            console.print(f"  [dim]At ${monthly_deposit:,.0f}/mo deposits alone: "
+                           f"~{months_deposits_only:.0f} months to recover[/dim]")
+
+        # What caused the losses?
+        console.print("\n  What caused the losses?")
+        console.print("    1. Market crash / correction")
+        console.print("    2. Bad stock picks")
+        console.print("    3. Over-leveraged positions")
+        console.print("    4. Emotional / revenge trading")
+        console.print("    5. Not sure / multiple reasons")
+
+        cause_map = {
+            "1": "market_crash", "2": "bad_picks", "3": "overleveraged",
+            "4": "emotional_trading", "5": "unknown",
+        }
+        current_cause = profile.get("loss_cause", "unknown")
+        default_cause = {v: k for k, v in cause_map.items()}.get(current_cause, "5")
+        cause_choice = Prompt.ask("  Loss cause", choices=["1", "2", "3", "4", "5"], default=default_cause)
+        loss_cause = cause_map[cause_choice]
+
+        # Tailored advice based on cause
+        cause_advice = {
+            "emotional_trading": "AI will enforce strict automation — no manual overrides recommended.",
+            "overleveraged": "AI will cap margin usage and reduce position sizes.",
+            "bad_picks": "AI will raise score threshold — only highest-conviction trades.",
+            "market_crash": "Strategy stays the same, adding macro monitoring weight.",
+        }
+        if loss_cause in cause_advice:
+            console.print(f"  [cyan]{cause_advice[loss_cause]}[/cyan]")
 
         timeline = Prompt.ask(
             "  Recovery timeline (weeks, or 'no_rush')",
@@ -306,7 +443,7 @@ def _step_trader_profile(existing: dict) -> dict:
             except ValueError:
                 pass
 
-        console.print("    1. [green]Conservative rebuild[/green] — Slow, safe, no risk increase")
+        console.print("\n    1. [green]Conservative rebuild[/green] — Slow, safe, no risk increase")
         console.print("    2. [yellow]Moderate recovery[/yellow]    — Slightly larger positions")
         console.print("    3. [red]Aggressive recovery[/red]   — Maximum acceptable risk")
 
@@ -315,6 +452,15 @@ def _step_trader_profile(existing: dict) -> dict:
         default_rec = {"conservative_rebuild": "1", "moderate": "2", "aggressive": "3"}.get(current_rec, "2")
         rec_choice = Prompt.ask("  Recovery strategy", choices=["1", "2", "3"], default=default_rec)
         recovery_strategy = rec_map[rec_choice]
+
+        cooldown_str = Prompt.ask(
+            "  Cooldown hours after hitting loss limit",
+            default=str(profile.get("cooldown_hours", 24)),
+        )
+        try:
+            cooldown_hours = int(cooldown_str)
+        except ValueError:
+            cooldown_hours = 24
 
         if recovery_timeline_weeks and losses_to_recover > 0:
             weekly_target = losses_to_recover / recovery_timeline_weeks
@@ -327,21 +473,40 @@ def _step_trader_profile(existing: dict) -> dict:
 
     # ── Build profile dict ────────────────────────────────────────
     result = {
+        # Account & Capital
         "account_size": account_size,
         "peak_account_value": peak_account_value,
         "losses_to_recover": losses_to_recover,
         "recovery_mode": recovery_mode,
+        "monthly_deposit": monthly_deposit,
+        # Risk Tolerance
         "risk_tolerance": risk_tolerance,
         "max_loss_per_trade_pct": float(max_loss_trade),
         "max_daily_loss_pct": float(max_daily),
         "max_drawdown_pct": float(max_dd),
+        # Behavioral Risk
+        "reaction_to_loss": reaction_to_loss,
+        "worst_acceptable_loss": worst_acceptable_loss,
+        "consecutive_loss_tolerance": consecutive_loss_tolerance,
+        # Position Sizing
+        "position_sizing_method": position_sizing_method,
+        "max_position_pct": float(max_pos_pct),
+        "max_portfolio_heat_pct": float(max_heat),
+        # Trading Style
         "trading_style": trading_style,
         "holding_period": period_map.get(trading_style, "days"),
         "preferred_assets": preferred_assets,
+        "market_hours_available": market_hours,
+        # Experience & Goals
         "experience_level": exp_map[exp_choice],
         "trading_goal": goal_map[goal_choice],
+        # Autonomy
+        "autonomy_level": autonomy_level,
+        # Recovery Plan
         "recovery_timeline_weeks": recovery_timeline_weeks,
         "recovery_strategy": recovery_strategy,
+        "loss_cause": loss_cause,
+        "cooldown_hours": cooldown_hours,
     }
 
     # Summary
@@ -350,14 +515,23 @@ def _step_trader_profile(existing: dict) -> dict:
     summary.add_column("Key", style="bold")
     summary.add_column("Value")
     summary.add_row("Account", f"${account_size:,.0f}")
+    if monthly_deposit > 0:
+        summary.add_row("Monthly deposit", f"${monthly_deposit:,.0f}")
     if recovery_mode:
         summary.add_row("Recovery target", f"${account_size + losses_to_recover:,.0f}")
         summary.add_row("Recovery strategy", recovery_strategy)
+        if loss_cause:
+            summary.add_row("Loss cause", loss_cause)
     summary.add_row("Risk tolerance", risk_tolerance)
+    summary.add_row("Loss reaction", reaction_to_loss)
+    summary.add_row("Max single loss", f"${worst_acceptable_loss:,.0f}")
+    summary.add_row("Position sizing", position_sizing_method)
     summary.add_row("Style", f"{trading_style} ({period_map.get(trading_style, 'days')})")
+    summary.add_row("Availability", market_hours)
     summary.add_row("Assets", ", ".join(preferred_assets))
     summary.add_row("Experience", exp_map[exp_choice])
     summary.add_row("Goal", goal_map[goal_choice])
+    summary.add_row("Autonomy", autonomy_level)
     console.print(summary)
 
     return result

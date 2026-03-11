@@ -47,6 +47,7 @@ DEFAULT_CONFIG = {
         "peak_account_value": None,     # Highest account value achieved ($)
         "losses_to_recover": 0,         # Dollar amount of losses to recover
         "recovery_mode": False,         # Whether actively recovering losses
+        "monthly_deposit": 0,           # Regular monthly deposit amount ($)
 
         # Risk Tolerance
         "risk_tolerance": "moderate",   # conservative | moderate | aggressive
@@ -54,18 +55,35 @@ DEFAULT_CONFIG = {
         "max_daily_loss_pct": 3.0,      # Stop trading after this daily loss %
         "max_drawdown_pct": 5.0,        # Full halt at this portfolio drawdown %
 
+        # Behavioral Risk (Schwab IPQ-inspired)
+        "reaction_to_loss": "hold",     # sell_all | sell_some | hold | buy_more
+        "worst_acceptable_loss": None,  # Max $ they can stomach losing per trade
+        "consecutive_loss_tolerance": 3,  # Pause after N consecutive losses
+
+        # Position Sizing
+        "position_sizing_method": "fixed_percent",  # fixed_percent | kelly | volatility
+        "max_position_pct": 15,         # Max % of account in any single position
+        "max_portfolio_heat_pct": 6.0,  # Total % of account at risk across all open
+
         # Trading Style
         "trading_style": "swing",       # day_trade | swing | position
         "holding_period": "days",       # hours | days | weeks
         "preferred_assets": ["equities"],  # equities, futures, crypto, fx
+        "market_hours_available": "full_day",  # full_day | morning | evening | cannot_monitor
 
         # Experience & Goals
         "experience_level": "intermediate",  # beginner | intermediate | advanced
         "trading_goal": "growth",       # growth | income | recovery | preservation
 
+        # Autonomy
+        "autonomy_level": "suggest",    # notify_only | suggest | semi_auto | full_auto
+
         # Recovery Plan (populated when recovery_mode=True)
         "recovery_timeline_weeks": None,   # Desired weeks to recover
         "recovery_strategy": "moderate",   # conservative_rebuild | moderate | aggressive
+        "loss_cause": None,             # market_crash | bad_picks | overleveraged |
+                                        # emotional_trading | unknown
+        "cooldown_hours": 24,           # Hours to pause after hitting loss limits
     },
 
     # ── Futures ───────────────────────────────────────────────────────
