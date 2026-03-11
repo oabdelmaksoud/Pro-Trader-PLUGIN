@@ -292,12 +292,18 @@ class TestRunWizard:
     @patch("pro_trader.cli.setup_wizard._step_discord", side_effect=lambda e, o: e)
     @patch("pro_trader.cli.setup_wizard._step_llm")
     @patch("pro_trader.cli.setup_wizard._step_broker")
+    @patch("pro_trader.cli.setup_wizard._step_trader_profile")
     @patch("pro_trader.cli.setup_wizard._step_openclaw")
     @patch("pro_trader.cli.setup_wizard.Confirm")
     def test_full_flow_writes_files(
-        self, mock_confirm, mock_oc, mock_broker, mock_llm, mock_discord, mock_plugins, tmp_path
+        self, mock_confirm, mock_oc, mock_profile, mock_broker, mock_llm,
+        mock_discord, mock_plugins, tmp_path
     ):
         mock_oc.return_value = {"openclaw_available": False, "openclaw_version": None}
+        mock_profile.return_value = {
+            "account_size": 1000, "risk_tolerance": "moderate",
+            "recovery_mode": False, "losses_to_recover": 0,
+        }
         mock_broker.return_value = {
             "ALPACA_API_KEY": "PKABC",
             "ALPACA_SECRET_KEY": "secret",
@@ -319,20 +325,25 @@ class TestRunWizard:
         assert "ALPACA_API_KEY" in env
         assert "_llm_provider" not in env
 
-        # User config should exist with llm_provider
+        # User config should exist with llm_provider and trader_profile
         cfg = wiz._load_user_config()
         assert cfg["llm_provider"] == "anthropic"
+        assert cfg["trader_profile"]["account_size"] == 1000
+        assert cfg["account_value"] == 1000
 
     @patch("pro_trader.cli.setup_wizard._step_plugins", return_value={})
     @patch("pro_trader.cli.setup_wizard._step_discord", side_effect=lambda e, o: e)
     @patch("pro_trader.cli.setup_wizard._step_llm", side_effect=lambda e: e)
     @patch("pro_trader.cli.setup_wizard._step_broker", side_effect=lambda e: e)
+    @patch("pro_trader.cli.setup_wizard._step_trader_profile")
     @patch("pro_trader.cli.setup_wizard._step_openclaw")
     @patch("pro_trader.cli.setup_wizard.Confirm")
     def test_cancel_no_write(
-        self, mock_confirm, mock_oc, mock_broker, mock_llm, mock_discord, mock_plugins, tmp_path
+        self, mock_confirm, mock_oc, mock_profile, mock_broker, mock_llm,
+        mock_discord, mock_plugins, tmp_path
     ):
         mock_oc.return_value = {"openclaw_available": False}
+        mock_profile.return_value = {"account_size": 500, "recovery_mode": False}
         mock_confirm.ask.return_value = False  # cancel
 
         wiz.run_wizard()
