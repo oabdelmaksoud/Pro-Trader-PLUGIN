@@ -20,6 +20,30 @@ trader.plugins.disable("discord")         # Toggle any plugin at runtime
 
 ---
 
+## Get Started in 60 Seconds
+
+```bash
+git clone https://github.com/oabdelmaksoud/Pro-Trader-SKILL.git
+cd Pro-Trader-SKILL
+./setup.sh
+```
+
+That's it. The setup script creates a virtual environment, installs everything, and launches the interactive setup wizard.
+
+<details>
+<summary>Manual installation</summary>
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[all]"
+pro-trader setup
+```
+
+</details>
+
+---
+
 ## Why Pro-Trader?
 
 Most trading bots are monolithic scripts — one data source, one strategy, hardcoded rules. When something breaks, everything breaks.
@@ -52,32 +76,6 @@ Most trading bots are monolithic scripts — one data source, one strategy, hard
 │   │ PLUGIN  │   │ YOUR     │   │ PLUGIN    │              │
 │   └─────────┘   └──────────┘   └───────────┘              │
 └─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Get Started in 60 Seconds
-
-```bash
-pip install "pro-trader[all]"
-pro-trader setup                  # Interactive wizard
-pro-trader analyze NVDA           # Your first analysis
-```
-
-### Install Options
-
-```bash
-pip install pro-trader             # Core only (data + scoring)
-pip install "pro-trader[agents]"   # + AI analysts (Claude, GPT, Gemini)
-pip install "pro-trader[all]"      # Everything (analysts + broker + monitors + Discord)
-```
-
-### From Source
-
-```bash
-git clone https://github.com/oabdelmaksoud/Pro-Trader-SKILL.git
-cd Pro-Trader-SKILL
-pip install -e ".[all]"
 ```
 
 ---
