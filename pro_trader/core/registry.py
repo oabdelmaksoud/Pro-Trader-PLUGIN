@@ -47,6 +47,13 @@ ENTRY_POINT_GROUPS = {
     "risk": "pro_trader.risk",
 }
 
+# Map category names to plugin directory names in pro_trader/plugins/
+CATEGORY_TO_DIR = {
+    "data": "data", "analyst": "analysts", "strategy": "strategies",
+    "broker": "brokers", "notifier": "notifiers", "monitor": "monitors",
+    "risk": "risk",
+}
+
 
 class PluginRegistry:
     """Central registry for all plugins."""
@@ -178,12 +185,6 @@ class PluginRegistry:
                         matches these categories. None loads all.
         """
         count = 0
-        # Map category names to module path segments
-        _CATEGORY_TO_DIR = {
-            "data": "data", "analyst": "analysts", "strategy": "strategies",
-            "broker": "brokers", "notifier": "notifiers", "monitor": "monitors",
-            "risk": "risk",
-        }
         builtin_modules = [
             "pro_trader.plugins.data.realtime_plugin",
             "pro_trader.plugins.data.yfinance_plugin",
@@ -208,7 +209,7 @@ class PluginRegistry:
         ]
 
         if categories:
-            allowed_dirs = {_CATEGORY_TO_DIR[c] for c in categories if c in _CATEGORY_TO_DIR}
+            allowed_dirs = {CATEGORY_TO_DIR[c] for c in categories if c in CATEGORY_TO_DIR}
             builtin_modules = [
                 m for m in builtin_modules
                 if m.split(".")[2] in allowed_dirs  # pro_trader.plugins.<dir>.*

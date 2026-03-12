@@ -243,9 +243,9 @@ def dashboard(
     from pro_trader import ProTrader
     from pro_trader.plugins.dashboard.server import start
 
-    # Dashboard only needs broker + data plugins — skip notifiers, monitors,
-    # analysts, strategies to avoid unwanted external connections (Discord, etc.)
-    trader = ProTrader(plugin_categories={"broker", "data"})
+    # Dashboard needs broker, data, and monitor plugins — skip notifiers,
+    # analysts, strategies to avoid unwanted external connections on startup.
+    trader = ProTrader(plugin_categories={"broker", "data", "monitor"})
     start(port=port, open_browser=open_browser, trader=trader)
 
 

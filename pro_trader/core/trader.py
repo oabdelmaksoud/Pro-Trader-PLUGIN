@@ -54,16 +54,20 @@ class ProTrader:
         self.bus = EventBus()
         self.plugins = PluginRegistry()
         self.plugins.set_config(self.config.data)
-        self._plugin_categories = plugin_categories
 
         if auto_discover:
-            self.load_plugins()
+            self.load_plugins(categories=plugin_categories)
 
         self._pipeline = Pipeline(self.plugins, self.bus, self.config.data)
 
-    def load_plugins(self) -> int:
-        """Discover and load all available plugins."""
-        count = self.plugins.discover(categories=self._plugin_categories)
+    def load_plugins(self, categories: set[str] | None = None) -> int:
+        """Discover and load plugins.
+
+        Args:
+            categories: If provided, only load these plugin categories.
+                        None loads all.
+        """
+        count = self.plugins.discover(categories=categories)
         self.plugins.startup_all()
         logger.info(f"Loaded {count} plugins")
         return count
