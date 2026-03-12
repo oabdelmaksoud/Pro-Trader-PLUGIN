@@ -259,6 +259,48 @@ def _broker_card(name: str, cfg: dict, num: int) -> Panel:
 
 # ── Wizard Steps ─────────────────────────────────────────────────────────────
 
+def _install_openclaw() -> bool:
+    """Attempt to install openclaw via npm. Returns True if successful."""
+    # Check for npm/npx first
+    if not shutil.which("npm"):
+        console.print("  [yellow]npm not found.[/yellow] Node.js is required to install openclaw.")
+        console.print("  Install Node.js 22+ first: [dim]https://nodejs.org[/dim]")
+        console.print("  Then run: [dim]npm install -g openclaw@2026.3.8[/dim]\n")
+        return False
+
+    console.print("  Installing openclaw v2026.3.8 via npm...\n")
+    try:
+        r = subprocess.run(
+            ["npm", "install", "-g", "openclaw@2026.3.8"],
+            capture_output=True, text=True, timeout=120,
+        )
+        if r.returncode == 0:
+            console.print("  [green]openclaw installed successfully![/green]")
+            return True
+        else:
+            # npm install -g often needs sudo on Linux/macOS
+            err = (r.stdout + r.stderr).strip()
+            if "EACCES" in err or "permission" in err.lower():
+                console.print("  [yellow]Permission denied.[/yellow] Trying with sudo...")
+                r2 = subprocess.run(
+                    ["sudo", "npm", "install", "-g", "openclaw@2026.3.8"],
+                    capture_output=True, text=True, timeout=120,
+                )
+                if r2.returncode == 0:
+                    console.print("  [green]openclaw installed successfully![/green]")
+                    return True
+                console.print(f"  [red]Install failed:[/red] {(r2.stdout + r2.stderr).strip()[:200]}")
+            else:
+                console.print(f"  [red]Install failed:[/red] {err[:200]}")
+            return False
+    except subprocess.TimeoutExpired:
+        console.print("  [red]Install timed out after 120s.[/red]")
+        return False
+    except Exception as e:
+        console.print(f"  [red]Install error:[/red] {e}")
+        return False
+
+
 def _step_openclaw() -> dict:
     """Step 1: Check OpenClaw installation."""
     _step_header(1)
@@ -267,9 +309,28 @@ def _step_openclaw() -> dict:
 
     if not shutil.which("openclaw"):
         console.print("[yellow]openclaw CLI not found in PATH.[/yellow]")
-        console.print("  Pro-Trader works without OpenClaw but Discord notifications")
-        console.print("  will be disabled. Install openclaw to enable Discord alerts.")
-        console.print("  [dim]pip install openclaw  # or see openclaw docs[/dim]\n")
+        console.print("  OpenClaw is a messaging bridge that supports Discord, Slack,")
+        console.print("  and other platforms. Pro-Trader works without it but messaging")
+        console.print("  notifications will be disabled.\n")
+
+        install = Confirm.ask("  Would you like to install openclaw now?", default=True)
+        if install:
+            if _install_openclaw():
+                # Re-check after install
+                shutil.which.cache_clear() if hasattr(shutil.which, 'cache_clear') else None
+            else:
+                console.print("\n  [dim]You can install manually later:[/dim]")
+                console.print("  [dim]  npm install -g openclaw@2026.3.8[/dim]\n")
+                return result
+        else:
+            console.print("\n  [dim]Skipping. You can install later with:[/dim]")
+            console.print("  [dim]  npm install -g openclaw@2026.3.8[/dim]\n")
+            return result
+
+    # Re-check in case we just installed
+    if not shutil.which("openclaw"):
+        console.print("  [yellow]openclaw still not found in PATH after install.[/yellow]")
+        console.print("  [dim]You may need to restart your shell or add npm's bin to PATH.[/dim]\n")
         return result
 
     ok, version = _test_command(["openclaw", "--version"])
@@ -1147,13 +1208,34 @@ def _get_broker_plugin_instance(broker_name: str):
     return cls()
 
 
-def _step_llm(env: dict[str, str]) -> dict[str, str]:
-    """Step 4: Configure LLM provider."""
+def _step_llm(env: dict[str, str], openclaw_info: dict | None = None) -> dict[str, str]:
+    """Step 4: Configure LLM provider.
+
+    When openclaw is available, its native model routing is used by default —
+    no separate API keys needed. Users can override to use a direct provider.
+    """
     _step_header(4)
 
-    console.print(
-        "  [dim]Choose the AI brain that powers your analysis agents.[/dim]\n"
-    )
+    openclaw_available = (openclaw_info or {}).get("openclaw_available", False)
+
+    if openclaw_available:
+        console.print("  [green]OpenClaw detected[/green] — model routing is handled by OpenClaw.")
+        console.print("  [dim]No separate LLM API keys are needed.[/dim]\n")
+
+        use_openclaw = Confirm.ask(
+            "  Use OpenClaw for LLM routing? (recommended)", default=True,
+        )
+        if use_openclaw:
+            env["_llm_provider"] = "openclaw"
+            return env
+
+        console.print()
+        console.print("  [dim]Configuring a direct LLM provider instead.[/dim]\n")
+
+    else:
+        console.print(
+            "  [dim]Choose the AI brain that powers your analysis agents.[/dim]\n"
+        )
 
     providers = {
         "1": ("anthropic", "ANTHROPIC_API_KEY", "Anthropic (Claude)"),
@@ -1373,8 +1455,8 @@ def run_wizard() -> None:
     if selected_brokers:
         trader_profile = _try_broker_sync(env, selected_brokers, trader_profile)
 
-    # Step 4: LLM
-    env = _step_llm(env)
+    # Step 4: LLM (uses openclaw routing if available)
+    env = _step_llm(env, openclaw_info)
 
     # Step 5: Discord
     env = _step_discord(env, openclaw_info)

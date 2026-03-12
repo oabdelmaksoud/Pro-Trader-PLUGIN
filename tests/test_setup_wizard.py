@@ -165,11 +165,32 @@ class TestGetInstalledVersion:
 # ── _step_openclaw ───────────────────────────────────────────────────────────
 
 class TestStepOpenclaw:
-    def test_not_installed(self, monkeypatch):
+    @patch("pro_trader.cli.setup_wizard.Confirm")
+    def test_not_installed_decline_install(self, mock_confirm, monkeypatch):
+        mock_confirm.ask.return_value = False
         monkeypatch.setattr("shutil.which", lambda x: None)
         result = wiz._step_openclaw()
         assert result["openclaw_available"] is False
         assert result["openclaw_version"] is None
+
+    @patch("pro_trader.cli.setup_wizard.Confirm")
+    def test_not_installed_install_succeeds(self, mock_confirm, monkeypatch):
+        mock_confirm.ask.return_value = True
+        # First which() returns None (not installed), second returns path (after install)
+        which_calls = iter([None, "/usr/local/bin/openclaw"])
+        monkeypatch.setattr("shutil.which", lambda x: next(which_calls))
+        monkeypatch.setattr(wiz, "_test_command", lambda cmd, **kw: (True, "openclaw v2026.3.8"))
+        monkeypatch.setattr(wiz, "_install_openclaw", lambda: True)
+        result = wiz._step_openclaw()
+        assert result["openclaw_available"] is True
+
+    @patch("pro_trader.cli.setup_wizard.Confirm")
+    def test_not_installed_install_fails(self, mock_confirm, monkeypatch):
+        mock_confirm.ask.return_value = True
+        monkeypatch.setattr("shutil.which", lambda x: None)
+        monkeypatch.setattr(wiz, "_install_openclaw", lambda: False)
+        result = wiz._step_openclaw()
+        assert result["openclaw_available"] is False
 
     def test_installed_v2026(self, monkeypatch):
         monkeypatch.setattr("shutil.which", lambda x: "/usr/bin/openclaw")
@@ -261,6 +282,25 @@ class TestStepLlm:
         assert env["OPENAI_API_KEY"] == "sk-openai-test123456789"
         assert env["_llm_provider"] == "openai"
 
+    @patch("pro_trader.cli.setup_wizard.Confirm")
+    def test_openclaw_default_routing(self, mock_confirm):
+        """When openclaw is available and user accepts, use openclaw routing."""
+        mock_confirm.ask.return_value = True
+        env = wiz._step_llm({}, openclaw_info={"openclaw_available": True})
+        assert env["_llm_provider"] == "openclaw"
+        # No API key should be set
+        assert "ANTHROPIC_API_KEY" not in env
+
+    @patch("pro_trader.cli.setup_wizard.Prompt")
+    @patch("pro_trader.cli.setup_wizard.Confirm")
+    def test_openclaw_override_to_direct(self, mock_confirm, mock_prompt):
+        """When openclaw available but user declines, fall through to provider selection."""
+        mock_confirm.ask.return_value = False
+        mock_prompt.ask.side_effect = ["1", "sk-ant-direct"]
+        env = wiz._step_llm({}, openclaw_info={"openclaw_available": True})
+        assert env["_llm_provider"] == "anthropic"
+        assert env["ANTHROPIC_API_KEY"] == "sk-ant-direct"
+
 
 # ── run_check ────────────────────────────────────────────────────────────────
 
@@ -340,7 +380,7 @@ class TestRunWizard:
 
     @patch("pro_trader.cli.setup_wizard._step_plugins", return_value={})
     @patch("pro_trader.cli.setup_wizard._step_discord", side_effect=lambda e, o: e)
-    @patch("pro_trader.cli.setup_wizard._step_llm", side_effect=lambda e: e)
+    @patch("pro_trader.cli.setup_wizard._step_llm", side_effect=lambda e, openclaw_info=None: e)
     @patch("pro_trader.cli.setup_wizard._step_broker", side_effect=lambda e: (e, [], ""))
     @patch("pro_trader.cli.setup_wizard._step_trader_profile")
     @patch("pro_trader.cli.setup_wizard._step_openclaw")
