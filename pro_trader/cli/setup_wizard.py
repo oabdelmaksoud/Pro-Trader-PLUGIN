@@ -265,13 +265,13 @@ def _install_openclaw() -> bool:
     if not shutil.which("npm"):
         console.print("  [yellow]npm not found.[/yellow] Node.js is required to install openclaw.")
         console.print("  Install Node.js 22+ first: [dim]https://nodejs.org[/dim]")
-        console.print("  Then run: [dim]npm install -g openclaw@2026.3.8[/dim]\n")
+        console.print("  Then run: [dim]npm install -g openclaw@latest[/dim]\n")
         return False
 
-    console.print("  Installing openclaw v2026.3.8 via npm...\n")
+    console.print("  Installing openclaw (latest) via npm...\n")
     try:
         r = subprocess.run(
-            ["npm", "install", "-g", "openclaw@2026.3.8"],
+            ["npm", "install", "-g", "openclaw@latest"],
             capture_output=True, text=True, timeout=120,
         )
         if r.returncode == 0:
@@ -283,7 +283,7 @@ def _install_openclaw() -> bool:
             if "EACCES" in err or "permission" in err.lower():
                 console.print("  [yellow]Permission denied.[/yellow] Trying with sudo...")
                 r2 = subprocess.run(
-                    ["sudo", "npm", "install", "-g", "openclaw@2026.3.8"],
+                    ["sudo", "npm", "install", "-g", "openclaw@latest"],
                     capture_output=True, text=True, timeout=120,
                 )
                 if r2.returncode == 0:
@@ -320,11 +320,11 @@ def _step_openclaw() -> dict:
                 shutil.which.cache_clear() if hasattr(shutil.which, 'cache_clear') else None
             else:
                 console.print("\n  [dim]You can install manually later:[/dim]")
-                console.print("  [dim]  npm install -g openclaw@2026.3.8[/dim]\n")
+                console.print("  [dim]  npm install -g openclaw@latest[/dim]\n")
                 return result
         else:
             console.print("\n  [dim]Skipping. You can install later with:[/dim]")
-            console.print("  [dim]  npm install -g openclaw@2026.3.8[/dim]\n")
+            console.print("  [dim]  npm install -g openclaw@latest[/dim]\n")
             return result
 
     # Re-check in case we just installed
