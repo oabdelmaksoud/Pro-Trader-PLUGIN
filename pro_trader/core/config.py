@@ -32,12 +32,62 @@ DEFAULT_CONFIG = {
     "max_debate_rounds": 2,
     "max_risk_discuss_rounds": 2,
 
+    # ── Broker ────────────────────────────────────────────────────────
+    "primary_broker": "alpaca",
+
     # ── Trading ───────────────────────────────────────────────────────
     "account_value": 500,
     "max_positions": 3,
     "score_threshold": 7.0,
     "conviction_min": 7,
     "risk_per_trade_pct": 0.02,
+
+    # ── Trader Profile ─────────────────────────────────────────────
+    # Collected via setup wizard; fed to AI analysts for personalized decisions
+    "trader_profile": {
+        # Account & Capital
+        "account_size": 500,            # Current total account value ($)
+        "peak_account_value": None,     # Highest account value achieved ($)
+        "losses_to_recover": 0,         # Dollar amount of losses to recover
+        "recovery_mode": False,         # Whether actively recovering losses
+        "monthly_deposit": 0,           # Regular monthly deposit amount ($)
+
+        # Risk Tolerance
+        "risk_tolerance": "moderate",   # conservative | moderate | aggressive
+        "max_loss_per_trade_pct": 2.0,  # Max % of account risked per trade
+        "max_daily_loss_pct": 3.0,      # Stop trading after this daily loss %
+        "max_drawdown_pct": 5.0,        # Full halt at this portfolio drawdown %
+
+        # Behavioral Risk (Schwab IPQ-inspired)
+        "reaction_to_loss": "hold",     # sell_all | sell_some | hold | buy_more
+        "worst_acceptable_loss": None,  # Max $ they can stomach losing per trade
+        "consecutive_loss_tolerance": 3,  # Pause after N consecutive losses
+
+        # Position Sizing
+        "position_sizing_method": "fixed_percent",  # fixed_percent | kelly | volatility
+        "max_position_pct": 15,         # Max % of account in any single position
+        "max_portfolio_heat_pct": 6.0,  # Total % of account at risk across all open
+
+        # Trading Style
+        "trading_style": "swing",       # day_trade | swing | position
+        "holding_period": "days",       # hours | days | weeks
+        "preferred_assets": ["equities"],  # equities, futures, crypto, fx
+        "market_hours_available": "full_day",  # full_day | morning | evening | cannot_monitor
+
+        # Experience & Goals
+        "experience_level": "intermediate",  # beginner | intermediate | advanced
+        "trading_goal": "growth",       # growth | income | recovery | preservation
+
+        # Autonomy
+        "autonomy_level": "suggest",    # notify_only | suggest | semi_auto | full_auto
+
+        # Recovery Plan (populated when recovery_mode=True)
+        "recovery_timeline_weeks": None,   # Desired weeks to recover
+        "recovery_strategy": "moderate",   # conservative_rebuild | moderate | aggressive
+        "loss_cause": None,             # market_crash | bad_picks | overleveraged |
+                                        # emotional_trading | unknown
+        "cooldown_hours": 24,           # Hours to pause after hitting loss limits
+    },
 
     # ── Futures ───────────────────────────────────────────────────────
     "futures": {
@@ -63,6 +113,12 @@ DEFAULT_CONFIG = {
     # ── Per-plugin config ─────────────────────────────────────────────
     "plugin_config": {
         "alpaca": {"paper": True},
+        "tastytrade": {"account_id": ""},
+        "ibkr": {"host": "127.0.0.1", "port": 7497, "client_id": 1},
+        "tradier": {},
+        "schwab": {},
+        "coinbase": {},
+        "snaptrade": {"user_id": ""},
         "discord": {
             "war_room_channel": "1469763123010342953",
         },

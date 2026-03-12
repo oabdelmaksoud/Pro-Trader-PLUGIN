@@ -39,13 +39,16 @@ logger = logging.getLogger(__name__)
 class ProTrader:
     """Main entry point for the Pro-Trader plugin framework."""
 
-    def __init__(self, config: dict | None = None, auto_discover: bool = True):
+    def __init__(self, config: dict | None = None, auto_discover: bool = True,
+                 plugin_categories: set[str] | None = None):
         """
         Initialize ProTrader.
 
         Args:
             config: Override config values (merged with defaults)
             auto_discover: If True, auto-discover and load all plugins
+            plugin_categories: If provided, only load these plugin categories
+                               (e.g. {"broker", "data"}). None loads all.
         """
         self.config = Config(overrides=config)
         self.bus = EventBus()
@@ -53,13 +56,18 @@ class ProTrader:
         self.plugins.set_config(self.config.data)
 
         if auto_discover:
-            self.load_plugins()
+            self.load_plugins(categories=plugin_categories)
 
         self._pipeline = Pipeline(self.plugins, self.bus, self.config.data)
 
-    def load_plugins(self) -> int:
-        """Discover and load all available plugins."""
-        count = self.plugins.discover()
+    def load_plugins(self, categories: set[str] | None = None) -> int:
+        """Discover and load plugins.
+
+        Args:
+            categories: If provided, only load these plugin categories.
+                        None loads all.
+        """
+        count = self.plugins.discover(categories=categories)
         self.plugins.startup_all()
         logger.info(f"Loaded {count} plugins")
         return count

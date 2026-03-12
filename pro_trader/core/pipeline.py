@@ -52,17 +52,26 @@ class Pipeline:
             return Signal(ticker=ticker, direction=Direction.PASS, score=0.0,
                           source="pipeline", metadata={"reason": "no_price_data"})
 
+        # ── Build context (shared by analysts + strategy) ────────────
+        if portfolio is None:
+            portfolio = self._get_portfolio()
+        trader_profile = self.config.get("trader_profile", {})
+        context = {
+            "account_value": (
+                portfolio.equity if portfolio.equity > 0
+                else self.config.get("account_value", 500)
+            ),
+            "portfolio": portfolio,
+            "trader_profile": trader_profile,
+        }
+
         # ── Step 2: Run analysts ─────────────────────────────────────
         logger.info(f"Step 2: Running analysts for {ticker}")
-        reports = self._run_analysts(data)
+        reports = self._run_analysts(data, context)
         self.bus.emit("analyst.complete", ticker=ticker, reports=reports)
 
         # ── Step 3: Strategy scoring ─────────────────────────────────
         logger.info(f"Step 3: Evaluating strategy for {ticker}")
-        context = {
-            "account_value": self.config.get("account_value", 500),
-            "portfolio": portfolio,
-        }
         signal = self._evaluate_strategy(data, reports, context)
         self.bus.emit("signal.new", signal=signal)
 
@@ -141,14 +150,14 @@ class Pipeline:
 
         return merged
 
-    def _run_analysts(self, data: MarketData) -> dict[str, dict]:
+    def _run_analysts(self, data: MarketData, context: dict | None = None) -> dict[str, dict]:
         """Run all enabled AnalystPlugins in parallel."""
         analyst_plugins: list[AnalystPlugin] = self.registry.get_plugins("analyst")
         reports = {}
 
         with ThreadPoolExecutor(max_workers=len(analyst_plugins) or 1) as ex:
             futures = {
-                ex.submit(self._safe_analyze, plugin, data): plugin.name
+                ex.submit(self._safe_analyze, plugin, data, context): plugin.name
                 for plugin in analyst_plugins
             }
             for future in as_completed(futures, timeout=120):
@@ -161,10 +170,11 @@ class Pipeline:
         return reports
 
     @staticmethod
-    def _safe_analyze(plugin: AnalystPlugin, data: MarketData) -> dict:
+    def _safe_analyze(plugin: AnalystPlugin, data: MarketData,
+                      context: dict | None = None) -> dict:
         """Wrapper to catch analyst exceptions."""
         try:
-            return plugin.analyze(data)
+            return plugin.analyze(data, context)
         except Exception as e:
             return {"report": f"[{plugin.name} error: {e}]", "score": 0}
 
@@ -216,10 +226,21 @@ class Pipeline:
         self.bus.emit("signal.approved", signal=signal)
         return signal
 
-    def _execute(self, signal: Signal) -> None:
-        """Execute trade via the first enabled BrokerPlugin."""
+    def _get_primary_broker(self):
+        """Get the configured primary broker plugin."""
         broker_plugins = self.registry.get_plugins("broker")
         if not broker_plugins:
+            return None
+        primary = self.config.get("primary_broker", "")
+        for bp in broker_plugins:
+            if bp.name == primary:
+                return bp
+        return broker_plugins[0]
+
+    def _execute(self, signal: Signal) -> None:
+        """Execute trade via the primary broker plugin."""
+        broker = self._get_primary_broker()
+        if not broker:
             logger.warning("No broker plugin available — skipping execution")
             return
 
@@ -233,7 +254,6 @@ class Pipeline:
             take_profit=signal.take_profit,
         )
 
-        broker = broker_plugins[0]
         result = broker.submit_order(order)
         signal.metadata["order_result"] = {
             "success": result.success,
@@ -253,11 +273,11 @@ class Pipeline:
                 logger.warning(f"Notifier '{plugin.name}' failed: {e}")
 
     def _get_portfolio(self) -> Portfolio:
-        """Get portfolio from broker, or return empty."""
-        broker_plugins = self.registry.get_plugins("broker")
-        if broker_plugins:
+        """Get portfolio from primary broker, or return empty."""
+        broker = self._get_primary_broker()
+        if broker:
             try:
-                return broker_plugins[0].get_portfolio()
+                return broker.get_portfolio()
             except Exception as e:
-                logger.warning(f"Failed to get portfolio: {e}")
+                logger.warning(f"Failed to get portfolio from {broker.name}: {e}")
         return Portfolio(cash=self.config.get("account_value", 500))

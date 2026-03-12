@@ -43,7 +43,16 @@ agents = [
 # Broker integrations
 brokers = [
     "alpaca-trade-api>=3.0.0",
+    "tastytrade>=12.0",
+    "ib_insync>=0.9.86",
+    "snaptrade-python-sdk>=11.0",
 ]
+
+# Individual broker extras for selective install
+broker-alpaca = ["alpaca-trade-api>=3.0.0"]
+broker-tastytrade = ["tastytrade>=12.0"]
+broker-ibkr = ["ib_insync>=0.9.86"]
+broker-snaptrade = ["snaptrade-python-sdk>=11.0"]
 
 # Background monitors
 monitors = [
@@ -101,6 +110,12 @@ cooper_scorer = "pro_trader.plugins.strategies.cooper_scorer:CooperScorer"
 
 [project.entry-points."pro_trader.brokers"]
 alpaca = "pro_trader.plugins.brokers.alpaca_broker:AlpacaBrokerPlugin"
+tastytrade = "pro_trader.plugins.brokers.tastytrade_broker:TastytradeBrokerPlugin"
+ibkr = "pro_trader.plugins.brokers.ibkr_broker:IBKRBrokerPlugin"
+snaptrade = "pro_trader.plugins.brokers.snaptrade_broker:SnapTradeBrokerPlugin"
+tradier = "pro_trader.plugins.brokers.tradier_broker:TradierBrokerPlugin"
+schwab = "pro_trader.plugins.brokers.schwab_broker:SchwabBrokerPlugin"
+coinbase = "pro_trader.plugins.brokers.coinbase_broker:CoinbaseBrokerPlugin"
 
 [project.entry-points."pro_trader.notifiers"]
 console = "pro_trader.plugins.notifiers.console_notifier:ConsoleNotifier"

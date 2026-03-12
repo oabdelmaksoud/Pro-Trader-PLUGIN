@@ -11,7 +11,7 @@ from typing import Any, Optional
 
 from pro_trader.models.signal import Signal
 from pro_trader.models.market_data import MarketData, Quote, Technicals
-from pro_trader.models.position import Order, OrderResult, Portfolio
+from pro_trader.models.position import Order, OrderResult, Portfolio, AccountSummary
 
 
 # ─── Base ────────────────────────────────────────────────────────────────────
@@ -154,6 +154,8 @@ class BrokerPlugin(PluginBase):
     Examples: AlpacaBroker, SimBroker, IBKRBroker
     """
 
+    supported_assets: list[str] = ["equity"]
+
     @abstractmethod
     def submit_order(self, order: Order) -> OrderResult:
         """Submit a trade order."""
@@ -172,6 +174,14 @@ class BrokerPlugin(PluginBase):
     def cancel_order(self, order_id: str) -> bool:
         """Cancel an open order. Override if supported."""
         return False
+
+    def get_account_summary(self) -> AccountSummary:
+        """Return account summary for profile sync. Override to provide real data."""
+        return AccountSummary(broker_name=self.name)
+
+    def supports_asset(self, asset_type: str) -> bool:
+        """Check if this broker supports a given asset type."""
+        return asset_type in self.supported_assets
 
 
 # ─── Notifier Plugins ────────────────────────────────────────────────────────

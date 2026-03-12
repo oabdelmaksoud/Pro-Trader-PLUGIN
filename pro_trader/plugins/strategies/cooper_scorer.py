@@ -99,12 +99,83 @@ class CooperScorer(StrategyPlugin):
 
         score = min(10.0, max(0.0, score))
 
+        # ── Profile-driven adjustments ──────────────────────────────
+        profile = (context or {}).get("trader_profile", {})
+        position_pct = profile.get("max_position_pct", 15) / 100  # from wizard
+
+        risk_tolerance = profile.get("risk_tolerance", "moderate")
+        if risk_tolerance == "conservative":
+            if score < 7.5:
+                score -= 0.3
+        elif risk_tolerance == "aggressive":
+            pass  # use their stated max_position_pct
+
+        # Behavioral risk: loss-averse traders get tighter sizing
+        reaction = profile.get("reaction_to_loss", "hold")
+        reaction_multiplier = {
+            "sell_all": 0.5, "sell_some": 0.75, "hold": 1.0, "buy_more": 1.0,
+        }.get(reaction, 1.0)
+        position_pct *= reaction_multiplier
+
+        # Recovery mode: tighten requirements for high-probability trades
+        if profile.get("recovery_mode"):
+            rec_strategy = profile.get("recovery_strategy", "moderate")
+            loss_cause = profile.get("loss_cause")
+
+            if rec_strategy == "conservative_rebuild":
+                if score < 7.5:
+                    score -= 0.5
+                position_pct = min(position_pct, 0.10)
+            elif rec_strategy == "aggressive":
+                position_pct = min(position_pct + 0.05, 0.25)
+
+            # Loss-cause-driven adjustments
+            if loss_cause == "bad_picks" and score < 8.0:
+                score -= 0.3  # only pass truly high-conviction trades
+            elif loss_cause == "overleveraged":
+                position_pct = min(position_pct, 0.10)
+            elif loss_cause == "emotional_trading":
+                pass  # AI handles execution, no adjustment needed
+
+        # Trading style
+        trading_style = profile.get("trading_style", "swing")
+
+        # Experience: beginners get tighter scoring
+        if profile.get("experience_level") == "beginner":
+            if score < 7.5:
+                score -= 0.3
+            position_pct = min(position_pct, 0.10)
+
+        score = min(10.0, max(0.0, score))
+
+        # Position size — respect worst_acceptable_loss as hard cap
+        account_value = (context or {}).get("account_value", 500)
+        position_size = max(1, int(account_value * position_pct / max(data.price, 1)))
+
+        worst_loss = profile.get("worst_acceptable_loss")
+        if worst_loss and data.price > 0:
+            stop_pct_val = profile.get("max_loss_per_trade_pct", 2.0) / 100
+            # Max shares = worst_loss / (price * stop_pct)
+            max_from_loss = int(worst_loss / (data.price * stop_pct_val)) if stop_pct_val > 0 else position_size
+            position_size = min(position_size, max(1, max_from_loss))
+
+        # Stop/target based on profile risk tolerance
+        stop_pct = profile.get("max_loss_per_trade_pct", 2.0) / 100
+        target_map = {"conservative": 0.05, "moderate": 0.08, "aggressive": 0.12}
+        target_pct = target_map.get(risk_tolerance, 0.08)
+
+        stop_loss = round(data.price * (1 - stop_pct), 2) if data.price else None
+        take_profit = round(data.price * (1 + target_pct), 2) if data.price else None
+
         return Signal(
             ticker=data.ticker,
             direction=direction,
             score=round(score, 1),
             confidence=confidence,
             price=data.price,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+            position_size=position_size,
             asset_type=data.asset_type,
             analyst_reports=reports,
             source="cooper_scorer",
@@ -112,5 +183,11 @@ class CooperScorer(StrategyPlugin):
                 "base_score": 5.0,
                 "analyst_scores": analyst_scores,
                 "is_futures": data.asset_type == "futures",
+                "risk_tolerance": risk_tolerance,
+                "trading_style": trading_style,
+                "recovery_mode": profile.get("recovery_mode", False),
+                "position_pct": round(position_pct, 3),
+                "reaction_multiplier": reaction_multiplier,
+                "autonomy_level": profile.get("autonomy_level", "suggest"),
             },
         )

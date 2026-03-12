@@ -8,6 +8,8 @@ import subprocess
 from pro_trader.core.interfaces import AnalystPlugin
 from pro_trader.models.market_data import MarketData
 
+from pro_trader.plugins.analysts.flash_analyst import _build_profile_block
+
 logger = logging.getLogger(__name__)
 
 
@@ -30,10 +32,12 @@ class MacroAnalyst(AnalystPlugin):
         ticker = data.ticker
         contract_name = data.contract_spec.get("name", ticker) if is_futures else ticker
         data_summary = json.dumps(data.to_dict(), indent=2, default=str)[:1500]
+        profile_block = _build_profile_block(context)
 
         if is_futures:
             asset_class = data.contract_spec.get("asset_class", "").upper()
             prompt = f"""You are Macro, CooperCorp Fundamentals Analyst — FUTURES MODE.
+{profile_block}
 Analyze {contract_name} ({ticker}). Market data:
 {data_summary}
 This is a {asset_class} futures contract.
@@ -44,6 +48,7 @@ For crypto futures: analyze on-chain metrics, regulatory news, institutional flo
 End with: FUNDAMENTAL SCORE: X/10"""
         else:
             prompt = f"""You are Macro, CooperCorp Fundamentals Analyst.
+{profile_block}
 Analyze {ticker} fundamentals. Market data:
 {data_summary}
 Provide: main catalyst, days to earnings, sector trend, relative P/E, insider activity, key macro risks.

@@ -1,248 +1,371 @@
-<div align="center">
+# Pro-Trader — Autonomous Trading on Autopilot
 
-# 📈 Pro-Trader
+> **AI-powered analysis. Plugin architecture. One command to trade.**
+>
+> 3 AI analysts run in parallel. 9 risk gates protect your capital. 12 plugins you can swap, extend, or replace.
 
-**A plugin-based, autonomous trading framework for Python.**
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue?style=for-the-badge)](https://python.org)
+[![Plugins](https://img.shields.io/badge/plugins-12%20built--in-purple?style=for-the-badge)](https://github.com/oabdelmaksoud/Pro-Trader-SKILL)
+[![Tests](https://img.shields.io/badge/tests-162%20passing-brightgreen?style=for-the-badge)](#)
+[![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![OpenClaw Integration](https://img.shields.io/badge/OpenClaw-v2026.3.8-purple.svg)](https://github.com/openclaw/openclaw)
+```python
+from pro_trader import ProTrader
 
-*Analyze stocks and futures, score trade signals, and execute through your broker — all from a simple API or CLI.*
-
-</div>
+trader = ProTrader()
+signal = trader.analyze("NVDA")           # Full AI analysis in one call
+signals = trader.scan(["NVDA", "SPY"])    # Scan your whole watchlist
+trader.plugins.disable("discord")         # Toggle any plugin at runtime
+```
 
 ---
 
-## 🚀 Quick Start
+## Why Pro-Trader?
 
-### Installation
+Most trading bots are monolithic scripts — one data source, one strategy, hardcoded rules. When something breaks, everything breaks.
 
-Install the core components or full suite based on your needs:
+**Pro-Trader is different.** Every capability is a plugin:
+
+- **Swap your data source** without touching your strategy
+- **Add a new analyst** without rewriting the pipeline
+- **Disable risk gates** for backtesting, re-enable for live
+- **Build your own plugins** with a simple Python interface
+- **Never crash** — every step has fallback behavior
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     YOUR TRADING SYSTEM                      │
+│                                                              │
+│   Data           Analysts        Strategy        Execution   │
+│   ┌─────────┐   ┌──────────┐   ┌───────────┐   ┌────────┐ │
+│   │ yfinance│   │ Flash    │   │ Cooper    │   │ Alpaca │ │
+│   │ futures │   │ Macro    │   │ Scorer    │   │ Paper  │ │
+│   │ YOUR    │   │ Pulse    │   │ YOUR      │   │ YOUR   │ │
+│   │ PLUGIN  │   │ YOUR     │   │ PLUGIN    │   │ PLUGIN │ │
+│   └─────────┘   └──────────┘   └───────────┘   └────────┘ │
+│                                                              │
+│   Risk            Monitors        Notifiers                  │
+│   ┌─────────┐   ┌──────────┐   ┌───────────┐              │
+│   │ Circuit │   │ News     │   │ Discord   │              │
+│   │ Breaker │   │ FOMC     │   │ Console   │              │
+│   │ YOUR    │   │ Futures  │   │ YOUR      │              │
+│   │ PLUGIN  │   │ YOUR     │   │ PLUGIN    │              │
+│   └─────────┘   └──────────┘   └───────────┘              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Get Started in 60 Seconds
 
 ```bash
-# Core framework (data fetching + scoring pipeline)
-pip install pro-trader
-
-# Include AI analysts (LangGraph + LLMs)
-pip install "pro-trader[agents]"
-
-# Install everything (Broker, Dashboard, Monitors)
 pip install "pro-trader[all]"
+pro-trader setup                  # Interactive wizard
+pro-trader analyze NVDA           # Your first analysis
+```
 
-# Install from source
+### Install Options
+
+```bash
+pip install pro-trader             # Core only (data + scoring)
+pip install "pro-trader[agents]"   # + AI analysts (Claude, GPT, Gemini)
+pip install "pro-trader[all]"      # Everything (analysts + broker + monitors + Discord)
+```
+
+### From Source
+
+```bash
 git clone https://github.com/oabdelmaksoud/Pro-Trader-SKILL.git
 cd Pro-Trader-SKILL
 pip install -e ".[all]"
 ```
 
-### Basic Usage
+---
 
-You can use the rich terminal CLI or the Python API:
+## The Pipeline
 
-**CLI:**
-```bash
-pro-trader analyze NVDA           # Analyze a stock
-pro-trader analyze /METH26        # Analyze a futures contract
-pro-trader scan --watchlist       # Scan your entire watchlist
-pro-trader plugin list            # Show loaded plugins
-pro-trader health                 # Check system health
-pro-trader setup                  # Interactive setup wizard
+Every ticker goes through a 6-step pipeline. Each step is a plugin you control.
+
+```mermaid
+flowchart LR
+    D["1. Data\nyfinance + futures"] --> A["2. Analysts\nFlash + Macro + Pulse"]
+    A --> S["3. Strategy\nCooperScorer"]
+    S --> R{"4. Risk\n9 gates"}
+    R -->|Approved| B["5. Broker\nAlpaca"]
+    R -->|Rejected| SKIP["Skip\nreason logged"]
+    B --> N["6. Notify\nDiscord + Console"]
+    SKIP --> N
+
+    style D fill:#0d1117,color:#58a6ff,stroke:#30363d
+    style A fill:#0d1117,color:#d2a8ff,stroke:#30363d
+    style S fill:#0d1117,color:#7ee787,stroke:#30363d
+    style R fill:#0d1117,color:#ffa657,stroke:#30363d
+    style B fill:#0d1117,color:#ff7b72,stroke:#30363d
+    style N fill:#0d1117,color:#79c0ff,stroke:#30363d
 ```
 
-**Python API:**
+| Step | What happens | Plugins |
+|------|-------------|---------|
+| **Data** | Fetch quotes, technicals, fundamentals, news | `yfinance`, `futures` |
+| **Analysts** | 3 AI agents analyze in parallel | `flash` (technical), `macro` (fundamental), `pulse` (sentiment) |
+| **Strategy** | Score the signal 0-10 | `cooper_scorer` |
+| **Risk** | 9 safety gates check before execution | `circuit_breaker` (drawdown halt, Kelly sizing, correlation) |
+| **Broker** | Submit bracket order with stop-loss + take-profit | `alpaca` (paper or live) |
+| **Notify** | Send rich signal cards | `discord`, `console` |
+
+---
+
+## CLI
+
+```bash
+pro-trader analyze NVDA           # Analyze a single stock
+pro-trader analyze /METH26        # Analyze micro futures
+pro-trader scan --watchlist        # Scan your full watchlist
+pro-trader plugin list             # See all loaded plugins
+pro-trader plugin health           # Check what's working
+pro-trader monitor check           # Run background monitors
+pro-trader setup                   # Setup wizard (install, update, uninstall)
+pro-trader health                  # Full system health check
+```
+
+---
+
+## Python API
+
 ```python
 from pro_trader import ProTrader
 
-trader = ProTrader()
+# Initialize with your settings
+trader = ProTrader(config={
+    "llm_provider": "anthropic",
+    "score_threshold": 7.0,
+})
 
-# Analyze a single asset
-signal = trader.analyze("NVDA")
-print(f"{signal.ticker}: {signal.direction.value} score={signal.score}")
+# Analyze a single ticker
+signal = trader.analyze("NVDA", dry_run=True)
+print(f"{signal.ticker}: {signal.direction.value} — score {signal.score}/10")
 
-# Scan multiple assets
-signals = trader.scan(["NVDA", "SPY", "AAPL"])
+# Scan multiple tickers at once
+signals = trader.scan(["NVDA", "SPY", "/METH26", "/M6EH26"])
+for s in signals:
+    if s.meets_threshold:
+        print(f"  TRADE: {s.ticker} {s.direction.value} — {s.score:.1f}/10")
+
+# Runtime plugin control
+trader.plugins.disable("discord")      # Quiet mode
+trader.plugins.enable("discord")       # Back on
+
+# React to events in real-time
+trader.on("signal.new", lambda s: print(f"New signal: {s.ticker}"))
+trader.on("order.filled", lambda o, r: print(f"Filled: {r.order_id}"))
+trader.on("risk.halt", lambda: print("Circuit breaker tripped!"))
 ```
 
 ---
 
-## 🏗️ Architecture Pipeline
+## 3 AI Analysts Working Together
 
-Pro-Trader evaluates every ticker through a robust, 6-step pipeline. Each step is powered by swappable **plugins**.
+Every analysis runs three specialized AI agents **in parallel**, then combines their perspectives:
 
-```mermaid
-graph TD
-    subgraph Pipeline
-    A[📡 1. Data] --> B[🧠 2. Analysts]
-    B --> C[🎯 3. Strategy]
-    C --> D[🛡️ 4. Risk]
-    D --> E[🏦 5. Broker]
-    E --> F[🔔 6. Notify]
-    end
+| Agent | Focus | What it looks at |
+|-------|-------|-----------------|
+| **Flash** | Technical | MACD, Bollinger Bands, RSI, VWAP, volume, support/resistance |
+| **Macro** | Fundamental | Earnings, revenue, news catalysts, economic calendar, sector rotation |
+| **Pulse** | Sentiment | Options flow, social sentiment, insider trades, institutional positioning |
 
-    A -.->|YFinance / Polygon| A
-    B -.->|Flash / Macro / Pulse| B
-    C -.->|Cooper Scorer| C
-    D -.->|Circuit Breakers| D
-    E -.->|Alpaca / IBKR| E
-    F -.->|Discord / Console| F
-    
-    style Pipeline fill:#f9f9f9,stroke:#333,stroke-width:2px,color:#000
-    style A fill:#e1f5fe,stroke:#01579b,color:#000
-    style B fill:#fff3e0,stroke:#e65100,color:#000
-    style C fill:#e8f5e9,stroke:#1b5e20,color:#000
-    style D fill:#ffebee,stroke:#b71c1c,color:#000
-    style E fill:#e8eaf6,stroke:#1a237e,color:#000
-    style F fill:#f3e5f5,stroke:#4a148c,color:#000
-```
-
-1. **Data:** Fetch live quotes, technical indicators, and news.
-2. **Analysts:** AI agents evaluate the data in parallel (e.g., Flash, Macro, Pulse).
-3. **Strategy:** A composite score (0-10) is generated based on the analysts' reports.
-4. **Risk:** Enforces risk gates (drawdown limits, sizing, account margin).
-5. **Broker:** Executes the trade if all criteria and risk gates are met.
-6. **Notify:** Sends alerts via Discord or the console.
+Their reports feed into the **CooperScorer**, which produces a composite score from 0-10. Signals scoring 7+ with high confidence trigger trade execution.
 
 ---
 
-## 🔌 Plugin System
+## Built-in Risk Protection
 
-Everything in Pro-Trader is a plugin. It ships with **12 built-in plugins** across 7 categories:
+Your capital is protected by multiple safety gates that run on every signal:
 
-| Category | Built-in Plugins | Description |
-|----------|-----------------|-------------|
-| 📡 **Data** | `yfinance`, `futures` | Fetch quotes, technicals, and fundamentals. |
-| 🧠 **Analysts** | `flash`, `macro`, `pulse` | AI-powered technical, fundamental, and sentiment check. |
-| 🎯 **Strategy** | `cooper_scorer` | Composite scoring with configurable thresholds. |
-| 🛡️ **Risk** | `circuit_breaker` | Drawdown halts and daily loss limits. |
-| 👁️ **Monitors** | `news`, `fomc`, `futures_monitor` | Background alerts for breaking news, FOMC dates, and sessions. |
-| 🏦 **Broker** | `alpaca` | Paper and live trading via Alpaca Markets. |
-| 🔔 **Notifiers** | `discord`, `console` | Send formatted signal cards to Discord or the terminal. |
+| Gate | What it does |
+|------|-------------|
+| **Score threshold** | Only trades scoring 7.0+ with confidence 7/10+ |
+| **Trailing stop loss** | Automatic -3% trailing stop on every position |
+| **Take profit** | Auto-exit at +8%, partial exit (50%) at +5% |
+| **Drawdown halt** | Stops all trading when portfolio drops 5% |
+| **Kelly sizing** | Half-Kelly position sizing from rolling win rate |
+| **Correlation filter** | Prevents overconcentration in correlated assets |
+| **Futures margin cap** | Never uses more than 60% of account for margin |
+| **Earnings guard** | Reduces position size around earnings dates |
+| **Daily loss limit** | Stops trading after hitting daily loss threshold |
 
-### Building Your Own Plugin
+---
 
-It's easy to build and register custom plugins:
+## Futures Support
+
+13 micro futures contracts with automatic margin calculation and session-aware trading:
+
+| Contract | Asset Class | Contract | Asset Class |
+|----------|-------------|----------|-------------|
+| `/MET` Micro Ether | Crypto | `/MES` Micro S&P 500 | Index |
+| `/MCD` Micro CAD | FX | `/MNQ` Micro Nasdaq | Index |
+| `/M6A` Micro AUD | FX | `/MYM` Micro Dow | Index |
+| `/M6B` Micro GBP | FX | `/MCL` Micro Crude | Commodity |
+| `/M6E` Micro EUR | FX | `/MNG` Micro NatGas | Commodity |
+| `/MSF` Micro CHF | FX | `/1OZ` 1oz Gold | Commodity |
+| `/BFF` Bitcoin Friday | Crypto | | |
+
+Pro-Trader automatically filters contracts based on your account size — you'll only see futures you can actually afford to trade.
+
+---
+
+## Extend with Your Own Plugins
+
+Write a plugin in minutes. Implement one interface, register it, done.
 
 ```python
-from pro_trader.core.interfaces import DataPlugin
-from pro_trader.models.market_data import Quote
+from pro_trader.core.interfaces import AnalystPlugin
 
-class MyDataPlugin(DataPlugin):
-    name = "my_source"
+class MyAnalyst(AnalystPlugin):
+    name = "my_analyst"
     version = "1.0.0"
 
-    def get_quote(self, symbol):
-        return Quote(symbol=symbol, price=100.0, source="my_source")
+    def analyze(self, data, context=None):
+        # Your analysis logic here
+        return {"direction": "buy", "confidence": 8, "reasoning": "..."}
 
-    def get_technicals(self, symbol, period="3mo"):
-        return None
-
-# Register it directly
 trader = ProTrader()
-trader.register(MyDataPlugin())
+trader.register(MyAnalyst())
 ```
 
-*Alternatively, register it via `pyproject.toml` for automatic discovery.*
+Or publish as a package with auto-discovery:
+
+```toml
+# In your package's pyproject.toml
+[project.entry-points."pro_trader.analysts"]
+my_analyst = "my_package:MyAnalyst"
+```
+
+### 7 Plugin Interfaces
+
+| Interface | What you build | Entry Point |
+|-----------|---------------|-------------|
+| `DataPlugin` | Custom data sources (Polygon, IEX, etc.) | `pro_trader.data` |
+| `AnalystPlugin` | Your own analysis agents | `pro_trader.analysts` |
+| `StrategyPlugin` | Custom scoring / signal logic | `pro_trader.strategies` |
+| `BrokerPlugin` | New broker integrations (IBKR, Schwab, etc.) | `pro_trader.brokers` |
+| `RiskPlugin` | Additional risk gates | `pro_trader.risk` |
+| `MonitorPlugin` | Background alert systems | `pro_trader.monitors` |
+| `NotifierPlugin` | Slack, Telegram, email, etc. | `pro_trader.notifiers` |
 
 ---
 
-## ⚙️ Configuration
+## Event System
 
-Pro-Trader leverages a cascading configuration system, processing settings in the following order (last wins):
+Plugins don't import each other — they communicate through events:
 
-1. **Built-in Defaults:** Base system settings.
-2. **Config Files:** `config/*.yaml` or `config/*.json` 
-3. **Environment variables:** E.g., `PROTRADER_SCORE_THRESHOLD=7.0`
-4. **CLI Flags / kwargs:** Immediate overrides passed via code or terminal.
+```python
+trader.on("signal.new", my_logger)           # New signal scored
+trader.on("signal.approved", my_tracker)     # Passed all risk gates
+trader.on("signal.rejected", my_debugger)    # Blocked by risk
+trader.on("order.filled", my_notifier)       # Trade executed
+trader.on("monitor.alert", my_escalator)     # Breaking news / FOMC / etc.
+trader.on("risk.halt", my_panic_handler)     # Circuit breaker tripped
+```
 
-### Essential Environment Variables
+---
+
+## Configuration
+
+Settings cascade — later sources override earlier ones:
+
+```
+Defaults → Config files → Environment variables → CLI flags
+```
+
+### Quick Config
 
 ```env
-# Broker Integration (Alpaca)
+# .env file
 ALPACA_API_KEY=your_key
 ALPACA_SECRET_KEY=your_secret
-ALPACA_BASE_URL=https://paper-api.alpaca.markets
-
-# AI Analyst Providers
 ANTHROPIC_API_KEY=your_key
-
-# Pro-Trader Overrides
-PROTRADER_LLM_PROVIDER=anthropic
 PROTRADER_SCORE_THRESHOLD=7.0
 ```
 
----
+### Full Config (`config/strategy.json`)
 
-## 📊 Futures Support
-
-Pro-Trader seamlessly handles **micro futures contracts**, with automatic proxy ticker resolution, margin calculation, and account affordability filtering.
-
-| Future | Asset Class | Future | Asset Class |
-|--------|-------------|--------|-------------|
-| `/MET` | Crypto (Micro Ether) | `/BFF` | Crypto (Bitcoin Friday) |
-| `/MCD` | FX (Micro CAD) | `/1OZ` | Commodity (1oz Gold) |
-| `/M6A` | FX (Micro AUD) | `/MNG` | Commodity (Micro NatGas) |
-| `/M6B` | FX (Micro GBP) | `/MES` | Index (Micro S&P 500) |
-| `/M6E` | FX (Micro EUR) | `/MNQ` | Index (Micro Nasdaq) |
-| `/MSF` | FX (Micro CHF) | `/MYM` | Index (Micro Dow) |
-| `/MCL` | Commodity (Micro Crude) | | |
-
----
-
-## 🛡️ Risk Management Defaults
-
-| Rule Area | Default Behavior |
-|-----------|------------------|
-| **Entry Threshold** | Min Score `7.0/10` |
-| **Stop Loss** | `-3%` Trailing Stop |
-| **Take Profit** | `+8%` Static |
-| **Partial Exit** | Scale out `50%` position at `+5%` profit |
-| **Circuit Breaker** | Halt trading if portfolio drawdown is `>= 5%` |
-| **Position Sizing** | Kelly criterion (Half-Kelly based on rolling win rate) |
-| **Futures Cap** | Max `60%` of account margin allocation |
+```json
+{
+  "watchlist": {
+    "equities": ["NVDA", "AAPL", "SPY", "MSFT"],
+    "futures": ["/MET", "/MCD", "/M6A", "/MES"]
+  },
+  "score_threshold": 7.0,
+  "futures_position": {
+    "max_contracts": 1,
+    "max_margin_pct": 0.60
+  }
+}
+```
 
 ---
 
-## 💬 OpenClaw Integration
+## Discord Alerts via OpenClaw
 
-Pro-Trader uses [OpenClaw](https://github.com/openclaw/openclaw) as its exclusive Discord messaging bridge. It integrates seamlessly without direct Discord bot tokens.
+Get real-time signal cards in Discord through [OpenClaw](https://github.com/openclaw/openclaw):
 
 ```python
 from pro_trader.services.openclaw import send_discord
 
-# Directly send messages to Discord via OpenClaw
-send_discord("your_channel_id", "🚨 Signal: BUY NVDA score 8.5")
+send_discord("your_channel_id", "BUY NVDA — Score 8.5/10, High Confidence")
 ```
 
-*Note: If OpenClaw is not installed, Pro-Trader gracefully degrades and will skip Discord notifications.*
+Works with OpenClaw v2026.3.x. If OpenClaw isn't installed, notifications silently skip — **nothing breaks**.
 
 ---
 
-## 📁 Repository Structure
+## Project Structure
 
-```text
+```
 pro_trader/
-├── core/               # Framework internals: interfaces, registry, pipeline
-├── models/             # Standardized datatypes: Signal, MarketData, Position
-├── plugins/            # 12 internal plugins categorized by pipeline stage
-├── services/           # External service bridges (e.g. OpenClaw)
-└── cli/                # Command-line interface and configuration tools
+├── core/               # Interfaces, registry, pipeline, config, event bus
+├── models/             # Signal, MarketData, Quote, Position, Order
+├── plugins/            # 12 built-in plugins across 7 categories
+│   ├── data/           # yfinance, futures
+│   ├── analysts/       # flash, macro, pulse
+│   ├── strategies/     # cooper_scorer
+│   ├── brokers/        # alpaca
+│   ├── risk/           # circuit_breaker
+│   ├── monitors/       # news, fomc, futures_monitor
+│   └── notifiers/      # discord, console
+├── services/           # OpenClaw integration
+└── cli/                # CLI app + setup wizard
 
-tradingagents/          # Legacy multi-agent system (preserved for compatibility)
-config/                 # YAML and JSON configurations
-scripts/                # Operational and cron helper scripts
-tests/                  # Robust pytest suite (>160 tests)
+tests/                  # 162 tests
+config/                 # Strategy + watchlist config
+scripts/                # Cron helpers + operational scripts
 ```
 
 ---
 
-## 🤝 Built On
+## Development
 
-- **[TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents)** — Base multi-agent framework
-- **[OpenClaw](https://github.com/openclaw/openclaw)** — Discord messaging bridge
-- **[Alpaca Markets](https://alpaca.markets)** — Broker trade execution
-- **[yfinance](https://github.com/ranaroussi/yfinance)** — Market data provider
+```bash
+pip install -e ".[dev]"
+pytest                       # 162 tests
+ruff check .                 # Lint
+pro-trader plugin health     # Integration check
+```
+
+---
+
+## Built On
+
+| Project | Role |
+|---------|------|
+| [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) | Base multi-agent framework (5 gap closures applied) |
+| [OpenClaw](https://github.com/openclaw/openclaw) | Discord messaging bridge |
+| [Alpaca Markets](https://alpaca.markets) | Paper + live trade execution |
+| [yfinance](https://github.com/ranaroussi/yfinance) | Market data |
+| [LangGraph](https://github.com/langchain-ai/langgraph) | AI agent orchestration |
+
+---
 
 <p align="center">
-  <i>Pro-Trader v1.1.0</i>
+  <b>Pro-Trader v1.1.0</b> — Stop writing trading scripts. Start building trading systems.
 </p>

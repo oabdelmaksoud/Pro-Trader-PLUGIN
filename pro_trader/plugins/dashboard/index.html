@@ -181,6 +181,111 @@ tr:hover { background:rgba(255,255,255,0.02); }
 }
 .lookup-input:focus { border-color:var(--green); }
 .lookup-result { margin-top:16px; }
+
+/* ── BROKER CARDS ── */
+.broker-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+.broker-card.primary {
+  border-color: var(--green);
+  box-shadow: 0 0 12px rgba(16,185,129,0.15);
+}
+.broker-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-bright);
+}
+.broker-version {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-left: 8px;
+}
+.broker-desc {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+.asset-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--blue-bg);
+  color: var(--blue);
+  margin-right: 4px;
+}
+.broker-account-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 12px;
+}
+.broker-account-grid dt { color: var(--text-dim); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+.broker-account-grid dd { font-weight: 600; color: var(--text-bright); }
+.broker-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.broker-enabled { font-size: 11px; }
+.broker-enabled.on { color: var(--green); }
+.broker-enabled.off { color: var(--red); }
+
+/* ── ACCOUNT / CONFIG CARDS ── */
+.config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  font-size: 12px;
+}
+.config-grid dt { color: var(--text-dim); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+.config-grid dd { font-weight: 600; color: var(--text-bright); margin-bottom: 8px; }
+.watchlist-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.watchlist-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--surface3);
+  color: var(--text-bright);
+  border: 1px solid var(--border);
+}
+
+/* ── CONNECTED BROKERS ROW (overview) ── */
+.brokers-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.broker-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-bright);
+}
+.broker-chip .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.broker-chip .dot.ok { background: var(--green); }
+.broker-chip .dot.err { background: var(--red); }
 </style>
 </head>
 <body>
@@ -205,6 +310,10 @@ tr:hover { background:rgba(255,255,255,0.02); }
       <div class="label">Heat</div>
       <div class="value" id="h-heat">--</div>
     </div>
+    <div class="header-stat">
+      <div class="label">Brokers</div>
+      <div class="value" id="h-brokers">--</div>
+    </div>
     <div class="status-dot" id="sse-dot" title="SSE disconnected"></div>
   </div>
 </div>
@@ -217,6 +326,8 @@ tr:hover { background:rgba(255,255,255,0.02); }
   <div class="nav-tab" data-tab="performance">Performance</div>
   <div class="nav-tab" data-tab="monitors">Monitors</div>
   <div class="nav-tab" data-tab="plugins">Plugins</div>
+  <div class="nav-tab" data-tab="brokers">Brokers</div>
+  <div class="nav-tab" data-tab="account">Account</div>
   <div class="nav-tab" data-tab="lookup">Lookup</div>
 </div>
 
@@ -277,6 +388,12 @@ tr:hover { background:rgba(255,255,255,0.02); }
         <div class="card-title">Monitor Alerts</div>
         <div id="ov-alerts"><div class="empty">No alerts</div></div>
       </div>
+    </div>
+
+    <!-- Connected Brokers -->
+    <div class="card" style="margin-top:16px;">
+      <div class="card-title">Connected Brokers</div>
+      <div class="brokers-row" id="ov-brokers"><span class="empty" style="padding:8px 0">Loading...</span></div>
     </div>
   </div>
 
@@ -370,6 +487,32 @@ tr:hover { background:rgba(255,255,255,0.02); }
     </div>
   </div>
 
+  <!-- ═══ BROKERS TAB ═══ -->
+  <div class="tab-content" id="tab-brokers">
+    <div class="card">
+      <div class="card-title">Connected Brokers</div>
+      <div id="brokers-list" class="grid grid-2"><div class="empty">Loading broker data...</div></div>
+    </div>
+  </div>
+
+  <!-- ═══ ACCOUNT TAB ═══ -->
+  <div class="tab-content" id="tab-account">
+    <div class="grid grid-2" style="margin-bottom:16px;">
+      <div class="card">
+        <div class="card-title">Configuration</div>
+        <div class="config-grid" id="acct-config"><div class="empty" style="grid-column:1/-1">Loading...</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Trader Profile</div>
+        <div class="config-grid" id="acct-profile"><div class="empty" style="grid-column:1/-1">Loading...</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Watchlist</div>
+      <div class="watchlist-badges" id="acct-watchlist"><span class="empty">No watchlist configured</span></div>
+    </div>
+  </div>
+
   <!-- ═══ LOOKUP TAB ═══ -->
   <div class="tab-content" id="tab-lookup">
     <div class="card">
@@ -428,6 +571,8 @@ $$('.nav-tab').forEach(tab => {
     if (target === 'signals') loadSignals();
     if (target === 'monitors') loadMonitors();
     if (target === 'plugins') loadPlugins();
+    if (target === 'brokers') loadBrokers();
+    if (target === 'account') loadAccount();
   });
 });
 
@@ -799,6 +944,128 @@ async function doLookup(symbol) {
   }
 }
 
+// ── BROKERS TAB ──
+let _brokersData = [];
+let _primaryBroker = '';
+
+async function loadBrokers() {
+  try {
+    const [brokersRes, configRes] = await Promise.all([
+      fetch('/api/brokers'),
+      fetch('/api/config'),
+    ]);
+    const brokersJson = await brokersRes.json();
+    const configJson = await configRes.json();
+    _brokersData = brokersJson.brokers || [];
+    _primaryBroker = configJson.primary_broker || '';
+    renderBrokers();
+    updateOverviewBrokers();
+    updateHeaderBrokers();
+  } catch(e) {
+    console.error('Failed to load brokers:', e);
+  }
+}
+
+function renderBrokers() {
+  const container = $('#brokers-list');
+  if (_brokersData.length === 0) {
+    container.innerHTML = '<div class="empty" style="grid-column:1/-1">No brokers connected</div>';
+    return;
+  }
+  container.innerHTML = _brokersData.map(b => {
+    const isPrimary = _primaryBroker && b.name === _primaryBroker;
+    const assets = (b.supported_assets || []).map(a => `<span class="asset-badge">${esc(a)}</span>`).join('');
+    const enabled = b.enabled !== false;
+    let acctHtml = '';
+    if (b.account) {
+      const a = b.account;
+      const pnlCl = pnlClass(a.today_pnl || 0);
+      acctHtml = `<dl class="broker-account-grid">
+        <div><dt>Equity</dt><dd>${fmtUsd(a.equity)}</dd></div>
+        <div><dt>Cash</dt><dd>${fmtUsd(a.cash)}</dd></div>
+        <div><dt>Buying Power</dt><dd>${fmtUsd(a.buying_power)}</dd></div>
+        <div><dt>Today P&L</dt><dd class="${pnlCl}">${a.today_pnl >= 0 ? '+' : ''}${fmtUsd(a.today_pnl)}</dd></div>
+        <div><dt>Open Positions</dt><dd>${a.open_positions ?? '--'}</dd></div>
+        <div><dt>Status</dt><dd style="color:${a.status === 'ACTIVE' ? 'var(--green)' : 'var(--yellow)'}">${esc(a.status || '--')}</dd></div>
+      </dl>`;
+    } else {
+      acctHtml = '<div style="margin-top:12px;font-size:11px;color:var(--text-dim)">Account data unavailable</div>';
+    }
+    return `<div class="broker-card${isPrimary ? ' primary' : ''}">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="broker-name">${esc(b.name)}</span>
+        <span class="broker-version">${esc(b.version || '')}</span>
+        ${isPrimary ? '<span class="badge badge-buy">PRIMARY</span>' : ''}
+      </div>
+      ${b.description ? `<div class="broker-desc">${esc(b.description)}</div>` : ''}
+      <div class="broker-status-row">
+        ${assets}
+        <span class="broker-enabled ${enabled ? 'on' : 'off'}">${enabled ? 'Enabled' : 'Disabled'}</span>
+      </div>
+      ${acctHtml}
+    </div>`;
+  }).join('');
+}
+
+function updateOverviewBrokers() {
+  const container = $('#ov-brokers');
+  if (_brokersData.length === 0) {
+    container.innerHTML = '<span class="empty" style="padding:8px 0">No brokers connected</span>';
+    return;
+  }
+  container.innerHTML = _brokersData.map(b => {
+    const hasAccount = !!b.account;
+    return `<span class="broker-chip"><span class="dot ${hasAccount ? 'ok' : 'err'}"></span>${esc(b.name)}</span>`;
+  }).join('');
+}
+
+function updateHeaderBrokers() {
+  $('#h-brokers').textContent = _brokersData.length;
+}
+
+// ── ACCOUNT TAB ──
+async function loadAccount() {
+  try {
+    const res = await fetch('/api/config');
+    const cfg = await res.json();
+
+    // Config card
+    const configEl = $('#acct-config');
+    const profile = cfg.trader_profile || {};
+    configEl.innerHTML = `
+      <dt>Primary Broker</dt><dd>${esc(cfg.primary_broker || 'Not set')}</dd>
+      <dt>LLM Provider</dt><dd>${esc(cfg.llm_provider || 'Not set')}</dd>
+      <dt>Score Threshold</dt><dd>${fmt(cfg.score_threshold || 7.0, 1)}/10</dd>
+      <dt>Confidence Threshold</dt><dd>${cfg.confidence_threshold || 7}/10</dd>
+      <dt>Max Position %</dt><dd>${cfg.max_position_pct ? fmt(cfg.max_position_pct, 1) + '%' : 'Not set'}</dd>
+      <dt>Account Value</dt><dd>${cfg.account_value ? fmtUsd(cfg.account_value) : 'Not set'}</dd>
+    `;
+
+    // Profile card
+    const profileEl = $('#acct-profile');
+    if (Object.keys(profile).length > 0) {
+      profileEl.innerHTML = Object.entries(profile).map(([k, v]) => {
+        const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const val = Array.isArray(v) ? v.join(', ') : typeof v === 'object' ? JSON.stringify(v) : String(v);
+        return `<dt>${esc(label)}</dt><dd>${esc(val)}</dd>`;
+      }).join('');
+    } else {
+      profileEl.innerHTML = '<div class="empty" style="grid-column:1/-1">No trader profile configured</div>';
+    }
+
+    // Watchlist
+    const watchlistEl = $('#acct-watchlist');
+    const watchlist = cfg.watchlist || [];
+    if (watchlist.length > 0) {
+      watchlistEl.innerHTML = watchlist.map(sym => `<span class="watchlist-badge">${esc(sym)}</span>`).join('');
+    } else {
+      watchlistEl.innerHTML = '<span class="empty">No watchlist configured</span>';
+    }
+  } catch(e) {
+    console.error('Failed to load account config:', e);
+  }
+}
+
 // ── SSE CONNECTION ──
 function connectSSE() {
   const es = new EventSource('/stream');
@@ -851,6 +1118,14 @@ function connectSSE() {
     }
   });
 
+  es.addEventListener('brokers', e => {
+    const data = JSON.parse(e.data);
+    _brokersData = data.brokers || [];
+    renderBrokers();
+    updateOverviewBrokers();
+    updateHeaderBrokers();
+  });
+
   es.addEventListener('heartbeat', () => {
     $('#sse-dot').title = 'SSE connected — last heartbeat ' + new Date().toLocaleTimeString();
   });
@@ -876,6 +1151,7 @@ function updateAll() {
   loadSignals();
   loadEquityCurve();
   loadMonitors();
+  loadBrokers();
 }
 
 // ── INIT ──

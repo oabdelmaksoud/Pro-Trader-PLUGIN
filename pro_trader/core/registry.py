@@ -47,6 +47,13 @@ ENTRY_POINT_GROUPS = {
     "risk": "pro_trader.risk",
 }
 
+# Map category names to plugin directory names in pro_trader/plugins/
+CATEGORY_TO_DIR = {
+    "data": "data", "analyst": "analysts", "strategy": "strategies",
+    "broker": "brokers", "notifier": "notifiers", "monitor": "monitors",
+    "risk": "risk",
+}
+
 
 class PluginRegistry:
     """Central registry for all plugins."""
@@ -73,8 +80,12 @@ class PluginRegistry:
         if name in self._plugins[category]:
             logger.warning(f"Plugin '{name}' already registered in '{category}' — replacing")
 
-        # Configure with plugin-specific config
+        # Configure with plugin-specific config + inject trader_profile for risk plugins
         plugin_config = self._config.get("plugin_config", {}).get(name, {})
+        if category == "risk" and "trader_profile" not in plugin_config:
+            trader_profile = self._config.get("trader_profile", {})
+            if trader_profile:
+                plugin_config = {**plugin_config, "trader_profile": trader_profile}
         try:
             plugin.configure(plugin_config)
         except Exception as e:
@@ -115,20 +126,24 @@ class PluginRegistry:
         """Get all plugins grouped by category."""
         return {cat: list(plugins.values()) for cat, plugins in self._plugins.items()}
 
-    def discover(self) -> int:
+    def discover(self, categories: set[str] | None = None) -> int:
         """
         Auto-discover plugins from:
           1. setuptools entry_points
           2. Built-in plugins
 
+        Args:
+            categories: If provided, only load plugins in these categories
+                        (e.g. {"broker", "data"}). None loads all.
+
         Returns number of plugins discovered.
         """
         count = 0
-        count += self._discover_entry_points()
-        count += self._discover_builtins()
+        count += self._discover_entry_points(categories)
+        count += self._discover_builtins(categories)
         return count
 
-    def _discover_entry_points(self) -> int:
+    def _discover_entry_points(self, categories: set[str] | None = None) -> int:
         """Discover plugins registered via setuptools entry_points."""
         count = 0
         try:
@@ -137,6 +152,9 @@ class PluginRegistry:
             return 0
 
         for category, group in ENTRY_POINT_GROUPS.items():
+            if categories and category not in categories:
+                continue
+
             try:
                 eps = entry_points(group=group)
             except TypeError:
@@ -159,8 +177,13 @@ class PluginRegistry:
 
         return count
 
-    def _discover_builtins(self) -> int:
-        """Discover built-in plugins from pro_trader.plugins package."""
+    def _discover_builtins(self, categories: set[str] | None = None) -> int:
+        """Discover built-in plugins from pro_trader.plugins package.
+
+        Args:
+            categories: If provided, only load plugins whose module path
+                        matches these categories. None loads all.
+        """
         count = 0
         builtin_modules = [
             "pro_trader.plugins.data.realtime_plugin",
@@ -176,7 +199,21 @@ class PluginRegistry:
             "pro_trader.plugins.monitors.news_monitor_plugin",
             "pro_trader.plugins.monitors.fomc_monitor_plugin",
             "pro_trader.plugins.monitors.futures_monitor_plugin",
+            "pro_trader.plugins.brokers.alpaca_broker",
+            "pro_trader.plugins.brokers.tastytrade_broker",
+            "pro_trader.plugins.brokers.ibkr_broker",
+            "pro_trader.plugins.brokers.snaptrade_broker",
+            "pro_trader.plugins.brokers.tradier_broker",
+            "pro_trader.plugins.brokers.schwab_broker",
+            "pro_trader.plugins.brokers.coinbase_broker",
         ]
+
+        if categories:
+            allowed_dirs = {CATEGORY_TO_DIR[c] for c in categories if c in CATEGORY_TO_DIR}
+            builtin_modules = [
+                m for m in builtin_modules
+                if m.split(".")[2] in allowed_dirs  # pro_trader.plugins.<dir>.*
+            ]
 
         for module_path in builtin_modules:
             try:

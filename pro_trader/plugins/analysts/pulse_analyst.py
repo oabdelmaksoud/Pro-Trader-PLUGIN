@@ -8,6 +8,8 @@ import subprocess
 from pro_trader.core.interfaces import AnalystPlugin
 from pro_trader.models.market_data import MarketData
 
+from pro_trader.plugins.analysts.flash_analyst import _build_profile_block
+
 logger = logging.getLogger(__name__)
 
 
@@ -30,9 +32,11 @@ class PulseAnalyst(AnalystPlugin):
         ticker = data.ticker
         contract_name = data.contract_spec.get("name", ticker) if is_futures else ticker
         data_summary = json.dumps(data.to_dict(), indent=2, default=str)[:1500]
+        profile_block = _build_profile_block(context)
 
         if is_futures:
             prompt = f"""You are Pulse, CooperCorp Sentiment Analyst — FUTURES MODE.
+{profile_block}
 Analyze {contract_name} ({ticker}) sentiment. Market data:
 {data_summary}
 This is a futures contract — consider: COT (Commitment of Traders) positioning,
@@ -41,6 +45,7 @@ Check for geopolitical risk events affecting this asset class.
 End with: SENTIMENT SCORE: X/10"""
         else:
             prompt = f"""You are Pulse, CooperCorp Sentiment & Options Analyst.
+{profile_block}
 Analyze {ticker} sentiment. Market data:
 {data_summary}
 Provide: news tone, options PCR, unusual options activity, Reddit/social buzz, dark pool signals, fear/greed.
