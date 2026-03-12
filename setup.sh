@@ -57,7 +57,15 @@ fi
 PY_VERSION=$("$PYTHON" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
 echo "→ Using $PYTHON ($PY_VERSION)"
 
-# ── Create venv if needed ───────────────────────────────────────────────────
+# ── Create venv (recreate if wrong Python version) ────────────────────────
+
+if [ -d "$VENV_DIR" ]; then
+    VENV_MINOR=$("$VENV_DIR/bin/python" -c "import sys; print(sys.version_info.minor)" 2>/dev/null || echo "0")
+    if [ "$VENV_MINOR" -lt "$MIN_MINOR" ] || [ "$VENV_MINOR" -gt "$MAX_MINOR" ]; then
+        echo "→ Existing venv uses Python 3.$VENV_MINOR — recreating with $PY_VERSION..."
+        rm -rf "$VENV_DIR"
+    fi
+fi
 
 if [ ! -d "$VENV_DIR" ]; then
     echo "→ Creating virtual environment..."
